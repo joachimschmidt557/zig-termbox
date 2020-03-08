@@ -37,61 +37,61 @@ const Key = enum(u16) {
 };
 
 const Cell = struct {
-    ch : u32,
-    fg : u16,
-    bg : u16,
+    ch: u32,
+    fg: u16,
+    bg: u16,
 };
 
 const Modifier = enum(u8) {
-    Alt    = 0x01,
+    Alt = 0x01,
     Motion = 0x02,
 };
 
 const Color = enum {
     Default = 0x00,
-    Black   = 0x01,
-    Red     = 0x02,
-    Green   = 0x03,
-    Yellow  = 0x04,
-    Blue    = 0x05,
+    Black = 0x01,
+    Red = 0x02,
+    Green = 0x03,
+    Yellow = 0x04,
+    Blue = 0x05,
     Magenta = 0x06,
-    Cyan    = 0x07,
-    White   = 0x08,
+    Cyan = 0x07,
+    White = 0x08,
 };
 
 const Attribute = enum {
-    Bold      = 0x0100,
+    Bold = 0x0100,
     Underline = 0x0200,
-    Reverse   = 0x0400,
+    Reverse = 0x0400,
 };
 
 const EventType = enum(u8) {
-    Key    = 1,
+    Key = 1,
     Resize = 2,
-    Mouse  = 3,
+    Mouse = 3,
 };
 
 const Event = struct {
-    type : EventType,
-    mod : Modifier,
-    key : u16,
-    ch : u32,
-    w : i32,
-    h : i32,
-    x : i32,
-    y : i32,
+    type: EventType,
+    mod: Modifier,
+    key: u16,
+    ch: u32,
+    w: i32,
+    h: i32,
+    x: i32,
+    y: i32,
 };
 
 const InputMode = enum(u3) {
     Current = 0,
-    Esc     = 1,
-    Alt     = 2,
-    Mouse   = 4,
+    Esc = 1,
+    Alt = 2,
+    Mouse = 4,
 };
 
 const OutputMode = enum {
-    Current   = 0,
-    Normal    = 1,
+    Current = 0,
+    Normal = 1,
     Output256 = 2,
     Output216 = 3,
     Grayscale = 4,
@@ -100,14 +100,14 @@ const OutputMode = enum {
 const CellBuffer = struct {
     alloc: *Allocator,
 
-    width  : usize,
-    height : usize,
-    cells  : []Cell,
+    width: usize,
+    height: usize,
+    cells: []Cell,
 
     const Self = @This();
 
     fn init(allocator: *Allocator, w: usize, h: usize) !Self {
-        return Self {
+        return Self{
             .alloc = allocator,
             .width = w,
             .height = h,
@@ -135,7 +135,7 @@ const CellBuffer = struct {
         while (i < min_h) : (i += 1) {
             const src = i * old_width;
             const dest = i * w;
-            std.mem.copy(u8, old_buf[src..src + min_w], self.cells[dest..dest + min_w]);
+            std.mem.copy(u8, old_buf[src .. src + min_w], self.cells[dest .. dest + min_w]);
         }
 
         self.alloc.free(old_buf);
@@ -187,7 +187,7 @@ pub const Termbox = struct {
     const Self = @This();
 
     pub fn initFile(allocator: *Allocator, file: File) !Termbox {
-        return Self {
+        return Self{
             .alloc = allocator,
 
             .inout = file,
@@ -217,11 +217,9 @@ pub const Termbox = struct {
         self.back_buffer.clear();
     }
 
-    pub fn selectInputMode(self: *Self) void {
-    }
+    pub fn selectInputMode(self: *Self) void {}
 
-    pub fn selectOutputMode(self: *Self) void {
-    }
+    pub fn selectOutputMode(self: *Self) void {}
 
     pub fn shutdown(self: *Self) void {
         self.back_buffer.deinit();
@@ -230,9 +228,7 @@ pub const Termbox = struct {
         self.input_buffer.deinit();
     }
 
-    pub fn present(self: *Self) void {
-    }
+    pub fn present(self: *Self) void {}
 
-    fn setCursor(self: *Self, cx: usize, cy: usize) void {
-    }
+    fn setCursor(self: *Self, cx: usize, cy: usize) void {}
 };
