@@ -1,7 +1,11 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
+const Buffer = std.Buffer;
 const File = std.fs.File;
+
+const termios = @cImport({ @cInclude("termios.h"); });
+const ioctl = @cImport({ @cInclude("sys/ioctl.h"); });
 
 const term = @import("term.zig");
 
@@ -148,15 +152,8 @@ const CellBuffer = struct {
     }
 };
 
-fn writeCursor(buffer: ArrayList(u8), x: usize, y: usize) !void {
-    var buf: [32]u8 = undefined;
-    const options = fmt.FormatOptions{};
-
-    try buffer.appendSlice("\x1b[");
-    try buffer.appendSlice(buf[0..std.fmt.formatIntBuf(buf[0..], y + 1, 10, false, options)]);
-    try buffer.appendSlice(";");
-    try buffer.appendSlice(buf[0..std.fmt.formatIntBuf(buf[0..], x + 1, 10, false, options)]);
-    try buffer.appendSlice("H");
+fn writeCursor(buffer: Buffer, x: usize, y: usize) !void {
+    try buffer.print("\x1b[{};{}H", .{ y + 1, x + 1 });
 }
 
 fn writeSgr(buffer: ArrayList(u8), fg: u16, bg: u16, mode: OutputMode) !void {
@@ -171,12 +168,14 @@ fn writeSgr(buffer: ArrayList(u8), fg: u16, bg: u16, mode: OutputMode) !void {
 pub const Termbox = struct {
     alloc: *Allocator,
 
+    orig_termios: termios.termios,
+
     inout: File,
 
     back_buffer: CellBuffer,
     front_buffer: CellBuffer,
-    output_buffer: ArrayList(u8),
-    input_buffer: ArrayList(u8),
+    output_buffer: Buffer,
+    input_buffer: Buffer,
 
     term_w: usize,
     term_h: usize,
@@ -186,16 +185,18 @@ pub const Termbox = struct {
 
     const Self = @This();
 
-    pub fn initFile(allocator: *Allocator, file: File) !Termbox {
-        return Self{
+    pub fn initFile(allocator: *Allocator, file: File) !Self {
+        var result = Self{
             .alloc = allocator,
+
+            .orig_termios = undefined,
 
             .inout = file,
 
             .back_buffer = try CellBuffer.init(allocator, 0, 0),
             .front_buffer = try CellBuffer.init(allocator, 0, 0),
-            .output_buffer = ArrayList(u8).init(allocator),
-            .input_buffer = ArrayList(u8).init(allocator),
+            .output_buffer = try Buffer.initSize(allocator, 0),
+            .input_buffer = try Buffer.initSize(allocator, 0),
 
             .term_w = 0,
             .term_h = 0,
@@ -203,6 +204,10 @@ pub const Termbox = struct {
             .input_mode = InputMode.Esc,
             .output_mode = OutputMode.Normal,
         };
+
+        _ = termios.tcgetattr(file.handle, &result.orig_termios);
+
+        return result;
     }
 
     pub fn initPath(allocator: *Allocator, path: []const u8) !Self {
@@ -212,14 +217,6 @@ pub const Termbox = struct {
     pub fn init(allocator: *Allocator) !Self {
         return try initPath(allocator, "/dev/tty");
     }
-
-    pub fn clear(self: *Self) void {
-        self.back_buffer.clear();
-    }
-
-    pub fn selectInputMode(self: *Self) void {}
-
-    pub fn selectOutputMode(self: *Self) void {}
 
     pub fn shutdown(self: *Self) void {
         self.back_buffer.deinit();
@@ -231,4 +228,56 @@ pub const Termbox = struct {
     pub fn present(self: *Self) void {}
 
     fn setCursor(self: *Self, cx: usize, cy: usize) void {}
+
+    fn putCell(self: *Self, x: usize, y: usize, cell: Cell) void {}
+
+    fn changeCell(self: *Self, x: usize, y: usize, ch: u32, fg: u16, bg: u16) void {
+        const c = Cell{
+            .ch = ch,
+            .fg = fg,
+            .bg = bg,
+        };
+        self.putCell(x, y, c);
+    }
+
+    fn blit(self: *Self) void {}
+
+    pub fn pollEvent(self: Self) Event {}
+
+    pub fn peekEvent(self: Self, timeout: usize) Event {}
+
+    pub fn width(self: Self) usize {
+        return self.term_w;
+    }
+
+    pub fn height(self: Self) usize {
+        return self.term_h;
+    }
+
+    pub fn clear(self: *Self) void {
+        self.back_buffer.clear();
+    }
+
+    pub fn selectInputMode(self: *Self) void {}
+
+    pub fn selectOutputMode(self: *Self) void {}
+
+    fn updateTermSize(self: *Self) void {
+        var sz: ioctl.winsize = undefined;
+
+        self.term_w = sz.ws_col;
+        self.term_h = sz.ws_row;
+    }
+
+    fn sendClear(self: *Self) void {
+
+    }
+
+    fn updateSize(self: *Self) void {
+        self.updateTermSize();
+        self.back_buffer.resize(self.term_w, self.term_h);
+        self.front_buffer.resize(self.term_w, self.term_h);
+        self.front_buffer.clear();
+        self.sendClear();
+    }
 };

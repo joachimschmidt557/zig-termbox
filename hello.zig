@@ -9,4 +9,6 @@ pub fn main() !void {
 
     var t = try Termbox.init(allocator);
     defer t.shutdown();
+
+    std.time.sleep(1000000000);
 }
