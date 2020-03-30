@@ -1,56 +1,260 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+
+const terminfo = @import("terminfo.zig");
 
 const enter_mouse_seq = "\x1b[?1000h\x1b[?1002h\x1b[?1015h\x1b[?1006h";
 const exit_mouse_seq = "\x1b[?1006l\x1b[?1015l\x1b[?1002l\x1b[?1000l";
 
+const ti_magic = 0432;
+const ti_alt_magic = 542;
+const ti_header_length = 12;
+
+const ti_funcs = [_]i16{
+    28, 40, 16, 13, 5, 39, 36, 27, 26, 34, 89, 88,
+};
+const ti_keys = [_]i16{
+    66, 68, 69, 70, 71, 72, 73, 74, 75, 67, 216, 217, 77, 59, 76, 164, 82, 81,
+    87, 61, 79, 83,
+};
+
+const t_keys_num = 22;
+const t_funcs_num = 14;
+
+pub const TermFunc = enum {
+    EnterCa = 0,
+    ExitCa = 1,
+    ShowCursor = 2,
+    HideCursor = 3,
+    ClearScreen = 4,
+    Sgr0 = 5,
+    Underline = 6,
+    Bold = 7,
+    Blink = 8,
+    Reverse = 9,
+    EnterKeypad = 10,
+    ExitKeypad = 11,
+    EnterMouse = 12,
+    ExitMouse = 13,
+};
+
 pub const TermFuncs = struct {
-    enter_ca: []const u8,
-    exit_ca: []const u8,
-    show_cursor: []const u8,
-    hide_cursor: []const u8,
-    clear_screen: []const u8,
-    sgr0: []const u8,
-    underline: []const u8,
-    bold: []const u8,
-    blink: []const u8,
-    reverse: []const u8,
-    enter_keypad: []const u8,
-    exit_keypad: []const u8,
-    enter_mouse: []const u8,
-    exit_mouse: []const u8,
+    alloc: ?*Allocator,
+    data: []const []const u8,
+
+    const Self = @This();
+
+    pub fn deinit(self: *Self) void {
+        if (self.alloc) |a| {
+            for (self.data) |x| a.free(x);
+            a.free(self.data);
+        }
+    }
+
+    pub fn get(self: Self, x: TermFunc) []const u8 {
+        return self.data[@enumToInt(x)];
+    }
 };
 
 pub const TermKeys = struct {
+    alloc: ?*Allocator,
+    data: []const []const u8,
 
+    const Self = @This();
+
+    pub fn deinit(self: *Self) void {
+        if (self.alloc) |a| {
+            for (self.data) |x| a.free(x);
+            a.free(self.data);
+        }
+    }
 };
 
 pub const Term = struct {
     name: []const u8,
     keys: TermKeys,
     funcs: TermFuncs,
+
+    const Self = @This();
+
+    fn tryCompatible(term: []const u8, name: []const u8, keys: TermKeys, funcs: TermFuncs) ?Self {
+        if (std.mem.indexOf(u8, term, name)) |_| {
+            return Self{
+                .name = name,
+                .keys = keys,
+                .funcs = funcs,
+            };
+        } else {
+            return null;
+        }
+    }
+
+    fn initTermBuiltin() !Self {
+        const term = std.os.getenv("TERM") orelse return error.UnsupportedTerm;
+
+        for (terms) |t| {
+            if (std.mem.eql(u8, term, t.name)) return t;
+        }
+
+        // Trying some heuristics
+        if (Self.tryCompatible(term, "xterm", xterm_keys, xterm_funcs)) |r| return r;
+        if (Self.tryCompatible(term, "rxvt", rxvt_unicode_keys, rxvt_unicode_funcs)) |r| return r;
+        if (Self.tryCompatible(term, "linux", linux_keys, linux_funcs)) |r| return r;
+        if (Self.tryCompatible(term, "Eterm", eterm_keys, eterm_funcs)) |r| return r;
+        if (Self.tryCompatible(term, "screen", screen_keys, screen_funcs)) |r| return r;
+        if (Self.tryCompatible(term, "cygwin", xterm_keys, xterm_funcs)) |r| return r;
+
+        return error.UnsupportedTerm;
+    }
+
+    pub fn initTerm(alloc: *Allocator) !Self {
+        const data = (try terminfo.loadTerminfo(alloc)) orelse return initTermBuiltin();
+        defer alloc.free(data);
+
+        var result: Self = Self{
+            .name = "",
+            .keys = TermKeys{
+                .alloc = alloc,
+                .data = undefined,
+            },
+            .funcs = TermFuncs{
+                .alloc = alloc,
+                .data = undefined,
+            },
+        };
+
+        const header_0 = std.mem.readIntNative(i16, data[0..2]);
+        const header_1 = std.mem.readIntNative(i16, data[2..4]);
+        var header_2 = std.mem.readIntNative(i16, data[4..6]);
+        const header_3 = std.mem.readIntNative(i16, data[6..8]);
+        const header_4 = std.mem.readIntNative(i16, data[8..10]);
+        const number_sec_len = if (header_0 == ti_alt_magic) @as(i16, 4) else 2;
+
+        if (@mod(header_1 + header_2, 2) != 0) {
+            header_2 += 1;
+        }
+
+        const str_offset = ti_header_length + header_1 + header_2 + number_sec_len * header_3;
+        const table_offset = str_offset + 2 * header_4;
+
+        // Keys
+        var keys = try alloc.alloc([]const u8, t_keys_num);
+        for (keys) |*x, i| {
+            x.* = try terminfo.copyString(alloc, data, str_offset + 2 * ti_keys[i], table_offset);
+        }
+        result.keys.data = keys;
+
+        // Functions
+        var funcs = try alloc.alloc([]const u8, t_funcs_num);
+        for (funcs) |*x, i| {
+            if (i >= t_funcs_num - 2) break;
+            x.* = try terminfo.copyString(alloc, data, str_offset + 2 * ti_funcs[i], table_offset);
+        }
+        funcs[t_funcs_num - 2] = try std.mem.dupe(alloc, u8, enter_mouse_seq);
+        funcs[t_funcs_num - 1] = try std.mem.dupe(alloc, u8, exit_mouse_seq);
+        result.funcs.data = funcs;
+
+        return result;
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.keys.deinit();
+        self.funcs.deinit();
+    }
 };
 
-const rxvt_256color_keys = TermKeys{};
+const rxvt_256color_keys = TermKeys{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "\x1B[11~", "\x1B[12~", "\x1B[13~", "\x1B[14~", "\x1B[15~", "\x1B[17~",
+        "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
+        "\x1B[2~",  "\x1B[3~",  "\x1B[7~",  "\x1B[8~",  "\x1B[5~",  "\x1B[6~",
+        "\x1B[A",   "\x1B[B",   "\x1B[D",   "\x1B[C",
+    },
+};
 const rxvt_256color_funcs = TermFuncs{
-    .enter_ca = "",
-    .exit_ca = "",
-    .show_cursor = "",
-    .hide_cursor = "",
-    .clear_screen = "",
-    .sgr0 = "",
-    .underline = "",
-    .bold = "",
-    .blink = "",
-    .reverse = "",
-    .enter_keypad = "",
-    .exit_keypad = "",
-    .enter_mouse = enter_mouse_seq,
-    .exit_mouse = exit_mouse_seq,
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "\x1B7\x1B[?47h", "\x1B[2J\x1B[?47l\x1B8",
+        "\x1B[?25h",      "\x1B[?25l",
+        "\x1B[H\x1B[2J",  "\x1B[m",
+        "\x1B[4m",        "\x1B[1m",
+        "\x1B[5m",        "\x1B[7m",
+        "\x1B=",          "\x1B>",
+        enter_mouse_seq,  exit_mouse_seq,
+    },
+};
+
+const eterm_keys = TermKeys{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "",
+    },
+};
+const eterm_funcs = TermFuncs{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "",
+    },
+};
+
+const screen_keys = TermKeys{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "",
+    },
+};
+const screen_funcs = TermFuncs{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "",
+    },
+};
+
+const rxvt_unicode_keys = TermKeys{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "",
+    },
+};
+const rxvt_unicode_funcs = TermFuncs{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "",
+    },
+};
+
+const linux_keys = TermKeys{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "",
+    },
+};
+const linux_funcs = TermFuncs{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "",
+    },
+};
+
+const xterm_keys = TermKeys{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "",
+    },
+};
+const xterm_funcs = TermFuncs{
+    .alloc = null,
+    .data = &[_][]const u8 {
+        "",
+    },
 };
 
 const terms = [_]Term{
-    .{ "rxvt-256color", rxvt_256color_keys, rxvt256color_funcs },
-    .{ "Eterm", eterm_keys, eterm_funcs },
-    .{ "linux", linux_keys, linux_funcs },
-    .{ "xterm", xterm_keys, xterm_funcs }
+    .{ .name = "rxvt-256color", .keys = rxvt_256color_keys, .funcs = rxvt_256color_funcs },
+    .{ .name = "Eterm", .keys = eterm_keys, .funcs = eterm_funcs },
+    .{ .name = "screen", .keys = screen_keys, .funcs = screen_funcs },
+    .{ .name = "rxvt-unicode", .keys = rxvt_unicode_keys, .funcs = rxvt_unicode_funcs },
+    .{ .name = "linux", .keys = linux_keys, .funcs = linux_funcs },
+    .{ .name = "xterm", .keys = xterm_keys, .funcs = xterm_funcs },
 };

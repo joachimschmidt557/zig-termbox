@@ -7,51 +7,19 @@ const File = std.fs.File;
 const termios = @cImport({ @cInclude("termios.h"); });
 const ioctl = @cImport({ @cInclude("sys/ioctl.h"); });
 
+const wcwidth = @import("../wcwidth/src/main.zig").wcwidth;
+
 const term = @import("term.zig");
+const cellbuffer = @import("cellbuffer.zig");
+const Cell = cellbuffer.Cell;
+const CellBuffer = cellbuffer.CellBuffer;
+const cursor = @import("cursor.zig");
+const Cursor = cursor.Cursor;
+const input = @import("input.zig");
+const Event = input.Event;
+const InputSettings = input.InputSettings;
 
-const Key = enum(u16) {
-    F1 = 0xFFFF - 0,
-    F2 = 0xFFFF - 1,
-    F3 = 0xFFFF - 2,
-    F4 = 0xFFFF - 3,
-    F5 = 0xFFFF - 4,
-    F6 = 0xFFFF - 5,
-    F7 = 0xFFFF - 6,
-    F8 = 0xFFFF - 7,
-    F9 = 0xFFFF - 8,
-    F10 = 0xFFFF - 9,
-    F11 = 0xFFFF - 10,
-    F12 = 0xFFFF - 11,
-    Insert = 0xFFFF - 12,
-    Delete = 0xFFFF - 13,
-    Home = 0xFFFF - 14,
-    End = 0xFFFF - 15,
-    PageUp = 0xFFFF - 16,
-    PageDown = 0xFFFF - 17,
-    ArrowUp = 0xFFFF - 18,
-    ArrowDown = 0xFFFF - 19,
-    ArrowLeft = 0xFFFF - 20,
-    ArrowRight = 0xFFFF - 21,
-    MouseLeft = 0xFFFF - 22,
-    MouseRight = 0xFFFF - 23,
-    MouseMiddle = 0xFFFF - 24,
-    MouseRelease = 0xFFFF - 25,
-    MouseWheelUp = 0xFFFF - 26,
-    MouseWheelDown = 0xFFFF - 27,
-};
-
-const Cell = struct {
-    ch: u32,
-    fg: u16,
-    bg: u16,
-};
-
-const Modifier = enum(u8) {
-    Alt = 0x01,
-    Motion = 0x02,
-};
-
-const Color = enum {
+const Color = enum(u16) {
     Default = 0x00,
     Black = 0x01,
     Red = 0x02,
@@ -63,34 +31,10 @@ const Color = enum {
     White = 0x08,
 };
 
-const Attribute = enum {
+const Attribute = enum(u16) {
     Bold = 0x0100,
     Underline = 0x0200,
     Reverse = 0x0400,
-};
-
-const EventType = enum(u8) {
-    Key = 1,
-    Resize = 2,
-    Mouse = 3,
-};
-
-const Event = struct {
-    type: EventType,
-    mod: Modifier,
-    key: u16,
-    ch: u32,
-    w: i32,
-    h: i32,
-    x: i32,
-    y: i32,
-};
-
-const InputMode = enum(u3) {
-    Current = 0,
-    Esc = 1,
-    Alt = 2,
-    Mouse = 4,
 };
 
 const OutputMode = enum {
@@ -101,113 +45,132 @@ const OutputMode = enum {
     Grayscale = 4,
 };
 
-const CellBuffer = struct {
-    alloc: *Allocator,
-
-    width: usize,
-    height: usize,
-    cells: []Cell,
-
-    const Self = @This();
-
-    fn init(allocator: *Allocator, w: usize, h: usize) !Self {
-        return Self{
-            .alloc = allocator,
-            .width = w,
-            .height = h,
-            .cells = try allocator.alloc(Cell, w * h),
-        };
-    }
-
-    fn deinit(self: *Self) void {
-        self.alloc.free(self.cells);
-    }
-
-    fn resize(self: *Self, w: usize, h: usize) !void {
-        const old_width = self.width;
-        const old_height = self.height;
-        const old_buf = self.cells;
-
-        self.width = w;
-        self.height = h;
-        self.cells = try allocator.alloc(Cell, w * h);
-
-        const min_w = if (w < old_width) w else old_width;
-        const min_h = if (h < old_height) h else old_height;
-
-        var i: usize = 0;
-        while (i < min_h) : (i += 1) {
-            const src = i * old_width;
-            const dest = i * w;
-            std.mem.copy(u8, old_buf[src .. src + min_w], self.cells[dest .. dest + min_w]);
-        }
-
-        self.alloc.free(old_buf);
-    }
-
-    fn clear(self: *Self) void {
-        for (self.cells) |*cell| {
-            cell.ch = ' ';
-        }
-    }
-};
-
-fn writeCursor(buffer: Buffer, x: usize, y: usize) !void {
-    try buffer.print("\x1b[{};{}H", .{ y + 1, x + 1 });
+fn flushBuffer(buffer: *Buffer, f: File) !void {
+    try f.writeAll(buffer.span());
+    try buffer.resize(0);
 }
 
-fn writeSgr(buffer: ArrayList(u8), fg: u16, bg: u16, mode: OutputMode) !void {
-    var buf: [32]u8 = undefined;
+fn writeSgr(buffer: *Buffer, fg: u16, bg: u16, mode: OutputMode) !void {
+    if (fg == @enumToInt(Color.Default) and bg == @enumToInt(Color.Default))
+        return;
 
     switch (mode) {
-        .Output256, .Output216, .Grayscale => {},
-        else => {},
+        .Output256, .Output216, .Grayscale => {
+            try buffer.append("\x1B[");
+            if (fg != @enumToInt(Color.Default)) {
+                try buffer.outStream().print("38;5;{}", .{ fg });
+                if (bg != @enumToInt(Color.Default)) {
+                    try buffer.append(";");
+                }
+            }
+            if (bg != @enumToInt(Color.Default)) {
+                try buffer.outStream().print("48;5;{}", .{ bg });
+            }
+            try buffer.append("m");
+        },
+        .Normal, .Current => {
+            try buffer.append("\x1B[");
+            if (fg != @enumToInt(Color.Default)) {
+                try buffer.outStream().print("3{}", .{ fg - 1 });
+                if (bg != @enumToInt(Color.Default)) {
+                    try buffer.append(";");
+                }
+            }
+            if (bg != @enumToInt(Color.Default)) {
+                try buffer.outStream().print("4{}", .{ bg - 1 });
+            }
+            try buffer.append("m");
+        },
     }
 }
 
 pub const Termbox = struct {
     alloc: *Allocator,
 
-    orig_termios: termios.termios,
+    orig_tios: termios.termios,
 
     inout: File,
+    winch_fds: [2]std.os.fd_t,
 
     back_buffer: CellBuffer,
     front_buffer: CellBuffer,
     output_buffer: Buffer,
     input_buffer: Buffer,
 
+    term: term.Term,
     term_w: usize,
     term_h: usize,
 
-    input_mode: InputMode,
+    input_settings: InputSettings,
     output_mode: OutputMode,
+
+    cur: Cursor,
+
+    foreground: u16,
+    background: u16,
+    last_fg: u16,
+    last_bg: u16,
 
     const Self = @This();
 
     pub fn initFile(allocator: *Allocator, file: File) !Self {
-        var result = Self{
+        var self = Self{
             .alloc = allocator,
 
-            .orig_termios = undefined,
+            .orig_tios = undefined,
 
             .inout = file,
+            .winch_fds = try std.os.pipe(),
 
-            .back_buffer = try CellBuffer.init(allocator, 0, 0),
-            .front_buffer = try CellBuffer.init(allocator, 0, 0),
+            .back_buffer = undefined,
+            .front_buffer = undefined,
             .output_buffer = try Buffer.initSize(allocator, 0),
             .input_buffer = try Buffer.initSize(allocator, 0),
 
+            .term = try term.Term.initTerm(allocator),
             .term_w = 0,
             .term_h = 0,
 
-            .input_mode = InputMode.Esc,
+            .input_settings = InputSettings.default,
             .output_mode = OutputMode.Normal,
+
+            .cur = Cursor.Hidden,
+
+            .foreground = @enumToInt(Color.Default),
+            .background = @enumToInt(Color.Default),
+            .last_fg = 0xFFFF,
+            .last_bg = 0xFFFF,
         };
 
-        _ = termios.tcgetattr(file.handle, &result.orig_termios);
+        _ = termios.tcgetattr(self.inout.handle, &self.orig_tios);
+        var tios = self.orig_tios;
 
-        return result;
+        tios.c_iflag &= ~(@as(c_uint, termios.IGNBRK) | @as(c_uint, termios.BRKINT) |
+                              @as(c_uint, termios.PARMRK) | @as(c_uint, termios.ISTRIP) |
+                              @as(c_uint, termios.INLCR) | @as(c_uint, termios.IGNCR) |
+                              @as(c_uint, termios.ICRNL) | @as(c_uint, termios.IXON));
+        tios.c_oflag &= ~(@as(c_uint, termios.OPOST));
+        tios.c_lflag &= ~(@as(c_uint, termios.ECHO) | @as(c_uint, termios.ECHONL) |
+                              @as(c_uint, termios.ICANON) | @as(c_uint, termios.ISIG) |
+                              @as(c_uint, termios.IEXTEN));
+        tios.c_cflag &= ~(@as(c_uint, termios.CSIZE) | @as(c_uint, termios.PARENB));
+        tios.c_cflag |= @as(c_uint, termios.CS8);
+        tios.c_cc[termios.VMIN] = 0;
+        tios.c_cc[termios.VTIME] = 0;
+        _ = termios.tcsetattr(self.inout.handle, termios.TCSAFLUSH, &tios);
+
+        try self.output_buffer.append(self.term.funcs.get(.EnterCa));
+        try self.output_buffer.append(self.term.funcs.get(.EnterKeypad));
+        try self.output_buffer.append(self.term.funcs.get(.HideCursor));
+        try self.sendClear();
+
+        self.updateTermSize();
+        self.back_buffer = try CellBuffer.init(allocator, self.term_w, self.term_h);
+        self.front_buffer = try CellBuffer.init(allocator, self.term_w, self.term_h);
+        self.back_buffer.clear(self.foreground, self.background);
+        self.front_buffer.clear(self.foreground, self.background);
+
+        return self;
     }
 
     pub fn initPath(allocator: *Allocator, path: []const u8) !Self {
@@ -218,66 +181,176 @@ pub const Termbox = struct {
         return try initPath(allocator, "/dev/tty");
     }
 
-    pub fn shutdown(self: *Self) void {
+    pub fn shutdown(self: *Self) !void {
+        try self.output_buffer.append(self.term.funcs.get(.ShowCursor));
+        try self.output_buffer.append(self.term.funcs.get(.Sgr0));
+        try self.output_buffer.append(self.term.funcs.get(.ClearScreen));
+        try self.output_buffer.append(self.term.funcs.get(.ExitCa));
+        try self.output_buffer.append(self.term.funcs.get(.ExitKeypad));
+        try self.output_buffer.append(self.term.funcs.get(.ExitMouse));
+        try flushBuffer(&self.output_buffer, self.inout);
+        _ = termios.tcsetattr(self.inout.handle, termios.TCSAFLUSH, &self.orig_tios);
+
+        self.term.deinit();
+        self.inout.close();
+        std.os.close(self.winch_fds[0]);
+        std.os.close(self.winch_fds[1]);
+
         self.back_buffer.deinit();
         self.front_buffer.deinit();
         self.output_buffer.deinit();
         self.input_buffer.deinit();
     }
 
-    pub fn present(self: *Self) void {}
+    pub fn present(self: *Self) !void {
+        // Invalidate cursor position to kickstart drawing
+        self.cur = Cursor.Hidden;
 
-    fn setCursor(self: *Self, cx: usize, cy: usize) void {}
+        var y: usize = 0;
+        while (y < self.front_buffer.height) : (y += 1) {
+            var x: usize = 0;
+            while (x < self.front_buffer.width) {
+                const back = self.back_buffer.get(x, y);
+                const front = self.front_buffer.get(x, y);
+                const wcw = wcwidth(back.ch);
+                const w = if (wcw >= 0) @intCast(usize, wcw) else 1;
 
-    fn putCell(self: *Self, x: usize, y: usize, cell: Cell) void {}
+                if (front.eql(back.*)) {
+                    x += w;
+                    continue;
+                }
 
-    fn changeCell(self: *Self, x: usize, y: usize, ch: u32, fg: u16, bg: u16) void {
-        const c = Cell{
-            .ch = ch,
-            .fg = fg,
-            .bg = bg,
-        };
-        self.putCell(x, y, c);
+                front.* = back.*;
+                try self.sendAttr(back.fg, back.bg);
+                if (x + w >= self.front_buffer.width) {
+                    var i = x;
+                    while (i < self.front_buffer.width) : (i += 1) {
+                        try self.sendChar(i, y, ' ');
+                    }
+                } else {
+                    try self.sendChar(x, y, back.ch);
+                    var i = x + 1;
+                    while (i < x + w) : (i += 1) {
+                        self.front_buffer.get(i, y).* = Cell{
+                            .ch = 0,
+                            .fg = back.fg,
+                            .bg = back.bg,
+                        };
+                    }
+                }
+
+                x += w;
+            }
+        }
+        switch (self.cur) {
+            .Visible => |pos| try cursor.writeCursor(&self.output_buffer, pos),
+            else => {},
+        }
+        try flushBuffer(&self.output_buffer, self.inout);
     }
 
-    fn blit(self: *Self) void {}
+    fn setCursor(self: *Self, new: Cursor) !void {
+        switch (new) {
+            .Hidden => {
+                if (self.cur == .Visible) {
+                    try self.output_buffer.append(self.term.funcs.hide_cusor);
+                }
+            },
+            .Visible => |pos| {
+                if (self.cur == .Hidden) {
+                    try self.output_buffer.append(self.term.funcs.show_cursor);
+                }
+                try cursor.writeCursor(&self.output_buffer, pos);
+            },
+        }
 
-    pub fn pollEvent(self: Self) Event {}
-
-    pub fn peekEvent(self: Self, timeout: usize) Event {}
-
-    pub fn width(self: Self) usize {
-        return self.term_w;
+        self.cur = new;
     }
 
-    pub fn height(self: Self) usize {
-        return self.term_h;
+    pub fn pollEvent(self: *Self) !?Event {
+        return try self.peekEvent(0);
+    }
+
+    pub fn peekEvent(self: *Self, timeout: usize) !?Event {
+        return try input.waitFillEvent(self.inout, &self.input_buffer, self.input_settings, timeout);
     }
 
     pub fn clear(self: *Self) void {
-        self.back_buffer.clear();
+        self.back_buffer.clear(self.foreground, self.background);
     }
-
-    pub fn selectInputMode(self: *Self) void {}
 
     pub fn selectOutputMode(self: *Self) void {}
 
     fn updateTermSize(self: *Self) void {
-        var sz: ioctl.winsize = undefined;
+        var sz = std.mem.zeroes(ioctl.winsize);
+
+        _ = ioctl.ioctl(self.inout.handle, ioctl.TIOCGWINSZ, &sz);
 
         self.term_w = sz.ws_col;
         self.term_h = sz.ws_row;
     }
 
-    fn sendClear(self: *Self) void {
+    fn sendAttr(self: *Self, fg: u16, bg: u16) !void {
+        if (self.last_fg != fg and self.last_bg != bg) {
+            try self.output_buffer.append(self.term.funcs.get(.Sgr0));
 
+            const fgcol = switch (self.output_mode) {
+                .Output256 => fg & 0xFF,
+                .Output216 => (if ((fg & 0xFF) <= 215) (fg & 0xFF) else 7) + 0x10,
+                .Grayscale => (if ((fg & 0xFF) <= 23) (fg & 0xFF) else 23) + 0xe8,
+                .Normal, .Current => fg & 0x0F,
+            };
+
+            const bgcol = switch (self.output_mode) {
+                .Output256 => bg & 0xFF,
+                .Output216 => (if ((bg & 0xFF) <= 215) (bg & 0xFF) else 0) + 0x10,
+                .Grayscale => (if ((bg & 0xFF) <= 23) (bg & 0xFF) else 0) + 0xe8,
+                .Normal, .Current => bg & 0x0F,
+            };
+
+            if (fg & @enumToInt(Attribute.Bold) > 0) {
+                try self.output_buffer.append(self.term.funcs.get(.Bold));
+            }
+            if (bg & @enumToInt(Attribute.Bold) > 0) {
+                try self.output_buffer.append(self.term.funcs.get(.Blink));
+            }
+            if (fg & @enumToInt(Attribute.Underline) > 0) {
+                try self.output_buffer.append(self.term.funcs.get(.Underline));
+            }
+            if (fg & @enumToInt(Attribute.Reverse) > 0 or bg & @enumToInt(Attribute.Reverse) > 0) {
+                try self.output_buffer.append(self.term.funcs.get(.Reverse));
+            }
+
+            try writeSgr(&self.output_buffer, fgcol, bgcol, self.output_mode);
+
+            self.last_fg = fg;
+            self.last_bg = bg;
+        }
     }
 
-    fn updateSize(self: *Self) void {
+    fn sendChar(self: *Self, x: usize, y: usize, c: u32) !void {
+        const wanted_cur = Cursor{ .Visible = cursor.Pos{ .x = x, .y = y } };
+        if (!self.cur.eql(wanted_cur)) {
+            try cursor.writeCursor(&self.output_buffer, cursor.Pos{ .x = x, .y = y });
+        }
+        self.cur = wanted_cur;
+
+        var buf: [7]u8 = undefined;
+        const len = std.unicode.utf8Encode(@intCast(u21, c), &buf) catch 0;
+        try self.output_buffer.append(buf[0..len]);
+    }
+
+    fn sendClear(self: *Self) !void {
+        try self.sendAttr(self.foreground, self.background);
+        try self.output_buffer.append(self.term.funcs.get(.ClearScreen));
+        try flushBuffer(&self.output_buffer, self.inout);
+    }
+
+    fn updateSize(self: *Self) !void {
         self.updateTermSize();
         self.back_buffer.resize(self.term_w, self.term_h);
         self.front_buffer.resize(self.term_w, self.term_h);
         self.front_buffer.clear();
-        self.sendClear();
+        try self.sendClear();
     }
 };
