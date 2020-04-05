@@ -1,8 +1,7 @@
 const std = @import("std");
-const Buffer = std.Buffer;
 
-pub fn writeCursor(buffer: *Buffer, pos: Pos) !void {
-    try buffer.outStream().print("\x1B[{};{}H", .{ pos.y + 1, pos.x + 1 });
+pub fn writeCursor(out_stream: var, pos: Pos) !void {
+    try out_stream.print("\x1B[{};{}H", .{ pos.y + 1, pos.x + 1 });
 }
 
 pub const Pos = struct {

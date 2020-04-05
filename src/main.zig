@@ -1,8 +1,10 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
-const Buffer = std.Buffer;
+const Buffer = ArrayList(u8);
+const BufferedOutStream = std.io.BufferedOutStream;
 const File = std.fs.File;
+const bufferedOutStream = std.io.bufferedOutStream;
 
 const termios = @cImport({ @cInclude("termios.h"); });
 const ioctl = @cImport({ @cInclude("sys/ioctl.h"); });
@@ -45,41 +47,36 @@ const OutputMode = enum {
     Grayscale = 4,
 };
 
-fn flushBuffer(buffer: *Buffer, f: File) !void {
-    try f.writeAll(buffer.span());
-    try buffer.resize(0);
-}
-
-fn writeSgr(buffer: *Buffer, fg: u16, bg: u16, mode: OutputMode) !void {
+fn writeSgr(out_stream: var, fg: u16, bg: u16, mode: OutputMode) !void {
     if (fg == @enumToInt(Color.Default) and bg == @enumToInt(Color.Default))
         return;
 
     switch (mode) {
         .Output256, .Output216, .Grayscale => {
-            try buffer.append("\x1B[");
+            try out_stream.writeAll("\x1B[");
             if (fg != @enumToInt(Color.Default)) {
-                try buffer.outStream().print("38;5;{}", .{ fg });
+                try out_stream.print("38;5;{}", .{ fg });
                 if (bg != @enumToInt(Color.Default)) {
-                    try buffer.append(";");
+                    try out_stream.writeAll(";");
                 }
             }
             if (bg != @enumToInt(Color.Default)) {
-                try buffer.outStream().print("48;5;{}", .{ bg });
+                try out_stream.print("48;5;{}", .{ bg });
             }
-            try buffer.append("m");
+            try out_stream.writeAll("m");
         },
         .Normal, .Current => {
-            try buffer.append("\x1B[");
+            try out_stream.writeAll("\x1B[");
             if (fg != @enumToInt(Color.Default)) {
-                try buffer.outStream().print("3{}", .{ fg - 1 });
+                try out_stream.print("3{}", .{ fg - 1 });
                 if (bg != @enumToInt(Color.Default)) {
-                    try buffer.append(";");
+                    try out_stream.writeAll(";");
                 }
             }
             if (bg != @enumToInt(Color.Default)) {
-                try buffer.outStream().print("4{}", .{ bg - 1 });
+                try out_stream.print("4{}", .{ bg - 1 });
             }
-            try buffer.append("m");
+            try out_stream.writeAll("m");
         },
     }
 }
@@ -94,7 +91,7 @@ pub const Termbox = struct {
 
     back_buffer: CellBuffer,
     front_buffer: CellBuffer,
-    output_buffer: Buffer,
+    output_buffer: BufferedOutStream(4096, File.OutStream),
     input_buffer: Buffer,
 
     term: term.Term,
@@ -124,8 +121,8 @@ pub const Termbox = struct {
 
             .back_buffer = undefined,
             .front_buffer = undefined,
-            .output_buffer = try Buffer.initSize(allocator, 0),
-            .input_buffer = try Buffer.initSize(allocator, 0),
+            .output_buffer = bufferedOutStream(file.outStream()),
+            .input_buffer = Buffer.init(allocator),
 
             .term = try term.Term.initTerm(allocator),
             .term_w = 0,
@@ -159,9 +156,9 @@ pub const Termbox = struct {
         tios.c_cc[termios.VTIME] = 0;
         _ = termios.tcsetattr(self.inout.handle, termios.TCSAFLUSH, &tios);
 
-        try self.output_buffer.append(self.term.funcs.get(.EnterCa));
-        try self.output_buffer.append(self.term.funcs.get(.EnterKeypad));
-        try self.output_buffer.append(self.term.funcs.get(.HideCursor));
+        try self.output_buffer.outStream().writeAll(self.term.funcs.get(.EnterCa));
+        try self.output_buffer.outStream().writeAll(self.term.funcs.get(.EnterKeypad));
+        try self.output_buffer.outStream().writeAll(self.term.funcs.get(.HideCursor));
         try self.sendClear();
 
         self.updateTermSize();
@@ -182,13 +179,15 @@ pub const Termbox = struct {
     }
 
     pub fn shutdown(self: *Self) !void {
-        try self.output_buffer.append(self.term.funcs.get(.ShowCursor));
-        try self.output_buffer.append(self.term.funcs.get(.Sgr0));
-        try self.output_buffer.append(self.term.funcs.get(.ClearScreen));
-        try self.output_buffer.append(self.term.funcs.get(.ExitCa));
-        try self.output_buffer.append(self.term.funcs.get(.ExitKeypad));
-        try self.output_buffer.append(self.term.funcs.get(.ExitMouse));
-        try flushBuffer(&self.output_buffer, self.inout);
+        const out_stream = self.output_buffer.outStream();
+
+        try out_stream.writeAll(self.term.funcs.get(.ShowCursor));
+        try out_stream.writeAll(self.term.funcs.get(.Sgr0));
+        try out_stream.writeAll(self.term.funcs.get(.ClearScreen));
+        try out_stream.writeAll(self.term.funcs.get(.ExitCa));
+        try out_stream.writeAll(self.term.funcs.get(.ExitKeypad));
+        try out_stream.writeAll(self.term.funcs.get(.ExitMouse));
+        try self.output_buffer.flush();
         _ = termios.tcsetattr(self.inout.handle, termios.TCSAFLUSH, &self.orig_tios);
 
         self.term.deinit();
@@ -198,7 +197,6 @@ pub const Termbox = struct {
 
         self.back_buffer.deinit();
         self.front_buffer.deinit();
-        self.output_buffer.deinit();
         self.input_buffer.deinit();
     }
 
@@ -243,10 +241,10 @@ pub const Termbox = struct {
             }
         }
         switch (self.cur) {
-            .Visible => |pos| try cursor.writeCursor(&self.output_buffer, pos),
+            .Visible => |pos| try cursor.writeCursor(self.output_buffer.outStream(), pos),
             else => {},
         }
-        try flushBuffer(&self.output_buffer, self.inout);
+        try self.output_buffer.flush();
     }
 
     fn setCursor(self: *Self, new: Cursor) !void {
@@ -289,8 +287,10 @@ pub const Termbox = struct {
     }
 
     fn sendAttr(self: *Self, fg: u16, bg: u16) !void {
+        const out_stream = self.output_buffer.outStream();
+
         if (self.last_fg != fg and self.last_bg != bg) {
-            try self.output_buffer.append(self.term.funcs.get(.Sgr0));
+            try out_stream.writeAll(self.term.funcs.get(.Sgr0));
 
             const fgcol = switch (self.output_mode) {
                 .Output256 => fg & 0xFF,
@@ -307,19 +307,19 @@ pub const Termbox = struct {
             };
 
             if (fg & @enumToInt(Attribute.Bold) > 0) {
-                try self.output_buffer.append(self.term.funcs.get(.Bold));
+                try out_stream.writeAll(self.term.funcs.get(.Bold));
             }
             if (bg & @enumToInt(Attribute.Bold) > 0) {
-                try self.output_buffer.append(self.term.funcs.get(.Blink));
+                try out_stream.writeAll(self.term.funcs.get(.Blink));
             }
             if (fg & @enumToInt(Attribute.Underline) > 0) {
-                try self.output_buffer.append(self.term.funcs.get(.Underline));
+                try out_stream.writeAll(self.term.funcs.get(.Underline));
             }
             if (fg & @enumToInt(Attribute.Reverse) > 0 or bg & @enumToInt(Attribute.Reverse) > 0) {
-                try self.output_buffer.append(self.term.funcs.get(.Reverse));
+                try out_stream.writeAll(self.term.funcs.get(.Reverse));
             }
 
-            try writeSgr(&self.output_buffer, fgcol, bgcol, self.output_mode);
+            try writeSgr(out_stream, fgcol, bgcol, self.output_mode);
 
             self.last_fg = fg;
             self.last_bg = bg;
@@ -329,19 +329,19 @@ pub const Termbox = struct {
     fn sendChar(self: *Self, x: usize, y: usize, c: u32) !void {
         const wanted_cur = Cursor{ .Visible = cursor.Pos{ .x = x, .y = y } };
         if (!self.cur.eql(wanted_cur)) {
-            try cursor.writeCursor(&self.output_buffer, cursor.Pos{ .x = x, .y = y });
+            try cursor.writeCursor(self.output_buffer.outStream(), cursor.Pos{ .x = x, .y = y });
         }
         self.cur = wanted_cur;
 
         var buf: [7]u8 = undefined;
         const len = std.unicode.utf8Encode(@intCast(u21, c), &buf) catch 0;
-        try self.output_buffer.append(buf[0..len]);
+        try self.output_buffer.outStream().writeAll(buf[0..len]);
     }
 
     fn sendClear(self: *Self) !void {
         try self.sendAttr(self.foreground, self.background);
-        try self.output_buffer.append(self.term.funcs.get(.ClearScreen));
-        try flushBuffer(&self.output_buffer, self.inout);
+        try self.output_buffer.outStream().writeAll(self.term.funcs.get(.ClearScreen));
+        try self.output_buffer.flush();
     }
 
     fn updateSize(self: *Self) !void {

@@ -1,6 +1,5 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Buffer = std.Buffer;
 
 fn tryPath(alloc: *Allocator, path: []const u8, term: []const u8) ?[]const u8 {
     const tmp = std.fmt.allocPrint(alloc, "{}/{}/{}", .{ path, &[_]u8{ term[0] }, term }) catch return null;

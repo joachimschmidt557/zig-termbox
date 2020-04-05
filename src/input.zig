@@ -1,5 +1,5 @@
 const std = @import("std");
-const Buffer = std.Buffer;
+const Buffer = std.ArrayList(u8);
 const File = std.fs.File;
 
 const Term = @import("term.zig").Term;
@@ -156,11 +156,11 @@ fn parseEscapeSequence(buf: []const u8, term: Term) ?Event {
 }
 
 pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event {
-    if (inbuf.len() == 0) return null;
+    if (inbuf.items.len == 0) return null;
 
     // Escape
-    if (inbuf.span()[0] == '\x1B') {
-        if (parseEscapeSequence(inbuf.span(), term)) |x| {
+    if (inbuf.items[0] == '\x1B') {
+        if (parseEscapeSequence(inbuf.items, term)) |x| {
             return x;
         } else {
             switch (settings.mode) {
@@ -189,8 +189,8 @@ pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event 
     }
 
     // UTF-8
-    if (std.unicode.utf8ByteSequenceLength(inbuf.span()[0])) |utf8_len| {
-        if (inbuf.len() >= utf8_len) {
+    if (std.unicode.utf8ByteSequenceLength(inbuf.items[0])) |utf8_len| {
+        if (inbuf.items.len >= utf8_len) {
             const key_ev = KeyEvent{
                 .mod = 0,
                 .key = 0,
@@ -204,7 +204,7 @@ pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event 
 }
 
 fn readUpTo(inout: File, buf: *Buffer, n: usize) !usize {
-    const prev_len = buf.len();
+    const prev_len = buf.items.len;
     try buf.resize(prev_len + n);
     
     var read_n: usize = 0;
