@@ -2,6 +2,8 @@ const std = @import("std");
 const Buffer = std.Buffer;
 const File = std.fs.File;
 
+const Term = @import("term.zig").Term;
+
 pub const Key = enum(u16) {
     F1 = 0xFFFF - 0,
     F2 = 0xFFFF - 1,
@@ -115,8 +117,8 @@ fn parseMouseEvent(buf: []const u8) ?MouseEvent {
     if (buf.len >= 6 and std.mem.startsWith(u8, buf, "\x1B[M")) {
         const b = buf[3] - 32;
         const action = switch (b & 3) {
-            0 => MouseAction.MouseWheelUp,
-            1 => MouseAction.MouseWheelDown,
+            0 => if (b & 64 != 0) MouseAction.MouseWheelUp else MouseAction.MouseLeft,
+            1 => if (b & 64 != 0) MouseAction.MouseWheelDown else MouseAction.MouseMiddle,
             2 => MouseAction.MouseRight,
             3 => MouseAction.MouseRelease,
             else => return null,
@@ -136,20 +138,29 @@ fn parseMouseEvent(buf: []const u8) ?MouseEvent {
     }
 }
 
-fn parseEscapeSequence(buf: []const u8) ?Event {
+fn parseEscapeSequence(buf: []const u8, term: Term) ?Event {
     if (parseMouseEvent(buf)) |x| return Event{ .Mouse = x };
 
-
+    for (term.keys.data) |k, i| {
+        if (std.mem.startsWith(u8, buf, k)) {
+            const key_ev = KeyEvent{
+                .mod = 0,
+                .key = 0xFFFF - @intCast(u16, i),
+                .ch = 0,
+            };
+            return Event{ .Key = key_ev };
+        }
+    }
 
     return null;
 }
 
-pub fn extractEvent(inbuf: *Buffer, settings: InputSettings) ?Event {
+pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event {
     if (inbuf.len() == 0) return null;
 
     // Escape
     if (inbuf.span()[0] == '\x1B') {
-        if (parseEscapeSequence(inbuf.span())) |x| {
+        if (parseEscapeSequence(inbuf.span(), term)) |x| {
             return x;
         } else {
             switch (settings.mode) {
@@ -209,13 +220,13 @@ fn readUpTo(inout: File, buf: *Buffer, n: usize) !usize {
     return read_n;
 }
 
-pub fn waitFillEvent(inout: File, buf: *Buffer, settings: InputSettings, timeout: usize) !?Event {
-    if (extractEvent(buf, settings)) |x| return x;
+pub fn waitFillEvent(inout: File, buf: *Buffer, term: Term, settings: InputSettings, timeout: usize) !?Event {
+    if (extractEvent(buf, term, settings)) |x| return x;
 
     const enough_data_for_parsing = 64;
     const n = try readUpTo(inout, buf, enough_data_for_parsing);
     if (n > 0) {
-        if (extractEvent(buf, settings)) |x| return x;
+        if (extractEvent(buf, term, settings)) |x| return x;
     }
 
     return null;

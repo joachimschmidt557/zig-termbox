@@ -272,14 +272,12 @@ pub const Termbox = struct {
     }
 
     pub fn peekEvent(self: *Self, timeout: usize) !?Event {
-        return try input.waitFillEvent(self.inout, &self.input_buffer, self.input_settings, timeout);
+        return try input.waitFillEvent(self.inout, &self.input_buffer, self.term, self.input_settings, timeout);
     }
 
     pub fn clear(self: *Self) void {
         self.back_buffer.clear(self.foreground, self.background);
     }
-
-    pub fn selectOutputMode(self: *Self) void {}
 
     fn updateTermSize(self: *Self) void {
         var sz = std.mem.zeroes(ioctl.winsize);

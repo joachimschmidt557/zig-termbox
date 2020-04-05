@@ -10,8 +10,9 @@ pub fn main() !void {
     var t = try Termbox.init(allocator);
     defer t.shutdown() catch {};
 
-    t.back_buffer.get(1, 1).ch = 'H';
-    t.back_buffer.get(2, 1).ch = 'e';
+    for ("Hello World") |ch, i| {
+        t.back_buffer.get(i + 1, 1).ch = ch;
+    }
     try t.present();
     _ = try t.pollEvent();
     std.time.sleep(1000000000);
