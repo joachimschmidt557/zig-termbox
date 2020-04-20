@@ -3,6 +3,8 @@ const std = @import("std");
 const termbox = @import("src/main.zig");
 const Termbox = termbox.Termbox;
 
+pub const io_mode = .evented;
+
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = &arena.allocator;
@@ -14,10 +16,6 @@ pub fn main() !void {
         t.back_buffer.get(i + 1, 1).ch = ch;
     }
     try t.present();
-    _ = try t.pollEvent();
-    std.time.sleep(1000000000);
-
-    t.clear();
-    try t.present();
-    std.time.sleep(1000000000);
+    const ev = try t.pollEvent();
+    // std.debug.warn("{}\n", .{ try t.pollEvent() });
 }

@@ -266,11 +266,7 @@ pub const Termbox = struct {
     }
 
     pub fn pollEvent(self: *Self) !?Event {
-        return try self.peekEvent(0);
-    }
-
-    pub fn peekEvent(self: *Self, timeout: usize) !?Event {
-        return try input.waitFillEvent(self.inout, &self.input_buffer, self.term, self.input_settings, timeout);
+        return try input.waitFillEvent(self.inout, &self.input_buffer, self.term, self.input_settings);
     }
 
     pub fn clear(self: *Self) void {

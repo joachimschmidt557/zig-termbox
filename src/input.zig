@@ -203,30 +203,37 @@ pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event 
     return null;
 }
 
-fn readUpTo(inout: File, buf: *Buffer, n: usize) !usize {
-    const prev_len = buf.items.len;
-    try buf.resize(prev_len + n);
-    
-    var read_n: usize = 0;
-    while (read_n <= n) {
-        if (read_n < n) {
-            const r = try inout.read(buf.span()[prev_len + read_n..prev_len + n]);
-            if (r == 0) break;
-            read_n += r;
+pub fn waitFillEvent(inout: File, buf: *Buffer, term: Term, settings: InputSettings) !?Event {
+    var debug_log = try std.fs.cwd().createFile("debug.log", .{});
+    defer debug_log.close();
+
+    while (true) {
+        // Read everything we can into the buffer
+        var b: [64]u8 = undefined;
+        while (true) {
+            const amt_read = try inout.readAll(&b);
+            try buf.appendSlice(b[0..amt_read]);
+            if (amt_read < 64) break;
         }
-    }
 
-    try buf.resize(prev_len + read_n);
-    return read_n;
-}
+        _ = try debug_log.writeAll("here\n");
 
-pub fn waitFillEvent(inout: File, buf: *Buffer, term: Term, settings: InputSettings, timeout: usize) !?Event {
-    if (extractEvent(buf, term, settings)) |x| return x;
+        if (extractEvent(buf, term, settings)) |x| {
+            return x;
+        } else {
+            // Wait for events
+            var event = std.os.epoll_event{
+                .data = std.os.epoll_data{
+                    .@"u32" = 0,
+                },
+                .events = std.os.EPOLLIN,
+            };
+            var recieved_events: [1]std.os.epoll_event = undefined;
 
-    const enough_data_for_parsing = 64;
-    const n = try readUpTo(inout, buf, enough_data_for_parsing);
-    if (n > 0) {
-        if (extractEvent(buf, term, settings)) |x| return x;
+            const epfd = try std.os.epoll_create1(0);
+            try std.os.epoll_ctl(epfd, std.os.EPOLL_CTL_ADD, inout.handle, &event);
+            _ = std.os.epoll_wait(epfd, &recieved_events, -1);
+        }
     }
 
     return null;
