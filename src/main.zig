@@ -141,16 +141,16 @@ pub const Termbox = struct {
         var tios = self.orig_tios;
         const tcflag_t = std.os.tcflag_t;
 
-        tios.iflag &= ~(@as(tcflag_t, std.os.IGNBRK) | @as(tcflag_t, std.os.BRKINT) |
-                            @as(tcflag_t, std.os.PARMRK) | @as(tcflag_t, std.os.ISTRIP) |
-                            @as(tcflag_t, std.os.INLCR) | @as(tcflag_t, std.os.IGNCR) |
-                            @as(tcflag_t, std.os.ICRNL) | @as(tcflag_t, std.os.IXON));
-        tios.oflag &= ~(@as(tcflag_t, std.os.OPOST));
-        tios.lflag &= ~(@as(tcflag_t, std.os.ECHO) | @as(tcflag_t, std.os.ECHONL) |
-                            @as(tcflag_t, std.os.ICANON) | @as(tcflag_t, std.os.ISIG) |
-                            @as(tcflag_t, std.os.IEXTEN));
-        tios.cflag &= ~(@as(tcflag_t, std.os.CSIZE) | @as(tcflag_t, std.os.PARENB));
-        tios.cflag |= @as(tcflag_t, std.os.CS8);
+        tios.iflag &= ~(@intCast(tcflag_t, std.os.IGNBRK) | @intCast(tcflag_t, std.os.BRKINT) |
+                            @intCast(tcflag_t, std.os.PARMRK) | @intCast(tcflag_t, std.os.ISTRIP) |
+                            @intCast(tcflag_t, std.os.INLCR) | @intCast(tcflag_t, std.os.IGNCR) |
+                            @intCast(tcflag_t, std.os.ICRNL) | @intCast(tcflag_t, std.os.IXON));
+        tios.oflag &= ~(@intCast(tcflag_t, std.os.OPOST));
+        tios.lflag &= ~(@intCast(tcflag_t, std.os.ECHO) | @intCast(tcflag_t, std.os.ECHONL) |
+                            @intCast(tcflag_t, std.os.ICANON) | @intCast(tcflag_t, std.os.ISIG) |
+                            @intCast(tcflag_t, std.os.IEXTEN));
+        tios.cflag &= ~(@intCast(tcflag_t, std.os.CSIZE) | @intCast(tcflag_t, std.os.PARENB));
+        tios.cflag |= @intCast(tcflag_t, std.os.CS8);
         // FIXME
         // tios.cc[std.os.VMIN] = 0;
         // tios.cc[std.os.VTIME] = 0;
