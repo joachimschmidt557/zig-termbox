@@ -6,7 +6,6 @@ const BufferedOutStream = std.io.BufferedOutStream;
 const File = std.fs.File;
 const bufferedOutStream = std.io.bufferedOutStream;
 
-const termios = @cImport({ @cInclude("termios.h"); });
 const ioctl = @cImport({ @cInclude("sys/ioctl.h"); });
 
 const wcwidth = @import("../wcwidth/src/main.zig").wcwidth;
@@ -84,7 +83,7 @@ fn writeSgr(out_stream: var, fg: u16, bg: u16, mode: OutputMode) !void {
 pub const Termbox = struct {
     alloc: *Allocator,
 
-    orig_tios: termios.termios,
+    orig_tios: std.os.termios,
 
     inout: File,
     winch_fds: [2]std.os.fd_t,
@@ -114,7 +113,7 @@ pub const Termbox = struct {
         var self = Self{
             .alloc = allocator,
 
-            .orig_tios = undefined,
+            .orig_tios = try std.os.tcgetattr(file.handle),
 
             .inout = file,
             .winch_fds = try std.os.pipe(),
@@ -139,22 +138,23 @@ pub const Termbox = struct {
             .last_bg = 0xFFFF,
         };
 
-        _ = termios.tcgetattr(self.inout.handle, &self.orig_tios);
         var tios = self.orig_tios;
+        const tcflag_t = std.os.tcflag_t;
 
-        tios.c_iflag &= ~(@as(c_uint, termios.IGNBRK) | @as(c_uint, termios.BRKINT) |
-                              @as(c_uint, termios.PARMRK) | @as(c_uint, termios.ISTRIP) |
-                              @as(c_uint, termios.INLCR) | @as(c_uint, termios.IGNCR) |
-                              @as(c_uint, termios.ICRNL) | @as(c_uint, termios.IXON));
-        tios.c_oflag &= ~(@as(c_uint, termios.OPOST));
-        tios.c_lflag &= ~(@as(c_uint, termios.ECHO) | @as(c_uint, termios.ECHONL) |
-                              @as(c_uint, termios.ICANON) | @as(c_uint, termios.ISIG) |
-                              @as(c_uint, termios.IEXTEN));
-        tios.c_cflag &= ~(@as(c_uint, termios.CSIZE) | @as(c_uint, termios.PARENB));
-        tios.c_cflag |= @as(c_uint, termios.CS8);
-        tios.c_cc[termios.VMIN] = 0;
-        tios.c_cc[termios.VTIME] = 0;
-        _ = termios.tcsetattr(self.inout.handle, termios.TCSAFLUSH, &tios);
+        tios.iflag &= ~(@as(tcflag_t, std.os.IGNBRK) | @as(tcflag_t, std.os.BRKINT) |
+                            @as(tcflag_t, std.os.PARMRK) | @as(tcflag_t, std.os.ISTRIP) |
+                            @as(tcflag_t, std.os.INLCR) | @as(tcflag_t, std.os.IGNCR) |
+                            @as(tcflag_t, std.os.ICRNL) | @as(tcflag_t, std.os.IXON));
+        tios.oflag &= ~(@as(tcflag_t, std.os.OPOST));
+        tios.lflag &= ~(@as(tcflag_t, std.os.ECHO) | @as(tcflag_t, std.os.ECHONL) |
+                            @as(tcflag_t, std.os.ICANON) | @as(tcflag_t, std.os.ISIG) |
+                            @as(tcflag_t, std.os.IEXTEN));
+        tios.cflag &= ~(@as(tcflag_t, std.os.CSIZE) | @as(tcflag_t, std.os.PARENB));
+        tios.cflag |= @as(tcflag_t, std.os.CS8);
+        // FIXME
+        // tios.cc[std.os.VMIN] = 0;
+        // tios.cc[std.os.VTIME] = 0;
+        try std.os.tcsetattr(self.inout.handle, std.os.TCSA.FLUSH, tios);
 
         try self.output_buffer.outStream().writeAll(self.term.funcs.get(.EnterCa));
         try self.output_buffer.outStream().writeAll(self.term.funcs.get(.EnterKeypad));
@@ -188,7 +188,7 @@ pub const Termbox = struct {
         try out_stream.writeAll(self.term.funcs.get(.ExitKeypad));
         try out_stream.writeAll(self.term.funcs.get(.ExitMouse));
         try self.output_buffer.flush();
-        _ = termios.tcsetattr(self.inout.handle, termios.TCSAFLUSH, &self.orig_tios);
+        try std.os.tcsetattr(self.inout.handle, std.os.TCSA.FLUSH, self.orig_tios);
 
         self.term.deinit();
         self.inout.close();
