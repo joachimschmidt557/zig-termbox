@@ -165,7 +165,7 @@ pub const Term = struct {
 
 const rxvt_256color_keys = TermKeys{
     .alloc = null,
-    .data = &[_][]const u8 {
+    .data = &[_][]const u8{
         "\x1B[11~", "\x1B[12~", "\x1B[13~", "\x1B[14~", "\x1B[15~", "\x1B[17~",
         "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
         "\x1B[2~",  "\x1B[3~",  "\x1B[7~",  "\x1B[8~",  "\x1B[5~",  "\x1B[6~",
@@ -174,7 +174,7 @@ const rxvt_256color_keys = TermKeys{
 };
 const rxvt_256color_funcs = TermFuncs{
     .alloc = null,
-    .data = &[_][]const u8 {
+    .data = &[_][]const u8{
         "\x1B7\x1B[?47h", "\x1B[2J\x1B[?47l\x1B8",
         "\x1B[?25h",      "\x1B[?25l",
         "\x1B[H\x1B[2J",  "\x1B[m",
@@ -187,66 +187,95 @@ const rxvt_256color_funcs = TermFuncs{
 
 const eterm_keys = TermKeys{
     .alloc = null,
-    .data = &[_][]const u8 {
-        "",
+    .data = &[_][]const u8{
+        "\x1B[11~", "\x1B[12~", "\x1B[13~", "\x1B[14~", "\x1B[15~", "\x1B[17~",
+        "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
+        "\x1B[2~",  "\x1B[3~",  "\x1B[7~",  "\x1B[8~",  "\x1B[5~",  "\x1B[6~",
+        "\x1B[A",   "\x1B[B",   "\x1B[D",   "\x1B[C",
     },
 };
 const eterm_funcs = TermFuncs{
     .alloc = null,
-    .data = &[_][]const u8 {
-        "",
+    .data = &[_][]const u8{
+        "\x1B7\x1B[?47h", "\x1B[2J\x1B[?47l\x1B8", "\x1B[?25h", "\x1B[?25l",
+        "\x1B[H\x1B[2J",  "\x1B[m",                "\x1B[4m",   "\x1B[1m",
+        "\x1B[5m",        "\x1B[7m",               "",          "",
+        "",               "",
     },
 };
 
 const screen_keys = TermKeys{
     .alloc = null,
-    .data = &[_][]const u8 {
-        "",
+    .data = &[_][]const u8{
+        "\x1BOP",   "\x1BOQ",   "\x1BOR",   "\x1BOS",   "\x1B[15~", "\x1B[17~",
+        "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
+        "\x1B[2~",  "\x1B[3~",  "\x1B[1~",  "\x1B[4~",  "\x1B[5~",  "\x1B[6~",
+        "\x1BOA",   "\x1BOB",   "\x1BOD",   "\x1BOC",
     },
 };
 const screen_funcs = TermFuncs{
     .alloc = null,
-    .data = &[_][]const u8 {
-        "",
+    .data = &[_][]const u8{
+        "\x1B[?1049h",   "\x1B[?1049l",  "\x1B[34h\x1B[?25h", "\x1B[?25l",
+        "\x1B[H\x1B[J",  "\x1B[m",       "\x1B[4m",           "\x1B[1m",
+        "\x1B[5m",       "\x1B[7m",      "\x1B[?1h\x1B=",     "\x1B[?1l\x1B>",
+        enter_mouse_seq, exit_mouse_seq,
     },
 };
 
 const rxvt_unicode_keys = TermKeys{
     .alloc = null,
-    .data = &[_][]const u8 {
-        "",
+    .data = &[_][]const u8{
+        "\x1B[11~", "\x1B[12~", "\x1B[13~", "\x1B[14~", "\x1B[15~", "\x1B[17~",
+        "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
+        "\x1B[2~",  "\x1B[3~",  "\x1B[7~",  "\x1B[8~",  "\x1B[5~",  "\x1B[6~",
+        "\x1B[A",   "\x1B[B",   "\x1B[D",   "\x1B[C",
     },
 };
 const rxvt_unicode_funcs = TermFuncs{
     .alloc = null,
-    .data = &[_][]const u8 {
-        "",
+    .data = &[_][]const u8{
+        "\x1B[?1049h",   "\x1B[r\x1B[?1049l", "\x1B[?25h", "\x1B[?25l",
+        "\x1B[H\x1B[2J", "\x1B[m\x1B(B",      "\x1B[4m",   "\x1B[1m",
+        "\x1B[5m",       "\x1B[7m",           "\x1B=",     "\x1B>",
+        enter_mouse_seq, exit_mouse_seq,
     },
 };
 
 const linux_keys = TermKeys{
     .alloc = null,
-    .data = &[_][]const u8 {
-        "",
+    .data = &[_][]const u8{
+        "\x1B[[A",  "\x1B[[B",  "\x1B[[C",  "\x1B[[D",  "\x1B[[E",  "\x1B[17~",
+        "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
+        "\x1B[2~",  "\x1B[3~",  "\x1B[1~",  "\x1B[4~",  "\x1B[5~",  "\x1B[6~",
+        "\x1B[A",   "\x1B[B",   "\x1B[D",   "\x1B[C",
     },
 };
 const linux_funcs = TermFuncs{
     .alloc = null,
-    .data = &[_][]const u8 {
-        "",
+    .data = &[_][]const u8{
+        "",           "",        "\x1B[?25h\x1B[?0c", "\x1B[?25l\x1B[?1c", "\x1B[H\x1B[J",
+        "\x1B[0;10m", "\x1B[4m", "\x1B[1m",           "\x1B[5m",           "\x1B[7m",
+        "",           "",        "",                  "",
     },
 };
 
 const xterm_keys = TermKeys{
     .alloc = null,
-    .data = &[_][]const u8 {
-        "",
+    .data = &[_][]const u8{
+        "\x1BOP",   "\x1BOQ",   "\x1BOR",   "\x1BOS",   "\x1B[15~", "\x1B[17~", "\x1B[18~",
+        "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~", "\x1B[2~",  "\x1B[3~",
+        "\x1BOH",   "\x1BOF",   "\x1B[5~",  "\x1B[6~",  "\x1BOA",   "\x1BOB",   "\x1BOD",
+        "\x1BOC",
     },
 };
 const xterm_funcs = TermFuncs{
     .alloc = null,
-    .data = &[_][]const u8 {
-        "",
+    .data = &[_][]const u8{
+        "\x1B[?1049h",   "\x1B[?1049l",  "\x1B[?12l\x1B[?25h", "\x1B[?25l",
+        "\x1B[H\x1B[2J", "\x1B(B\x1B[m", "\x1B[4m",            "\x1B[1m",
+        "\x1B[5m",       "\x1B[7m",      "\x1B[?1h\x1B=",      "\x1B[?1l\x1B>",
+        enter_mouse_seq, exit_mouse_seq,
     },
 };
 

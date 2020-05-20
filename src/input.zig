@@ -34,40 +34,40 @@ pub const Key = enum(u16) {
     MouseWheelUp = 0xFFFF - 26,
     MouseWheelDown = 0xFFFF - 27,
 
-    CtrlTilde       = 0x00,
-    CtrlA           = 0x01,
-    CtrlB           = 0x02,
-    CtrlC           = 0x03,
-    CtrlD           = 0x04,
-    CtrlE           = 0x05,
-    CtrlF           = 0x06,
-    CtrlG           = 0x07,
-    Backspace        = 0x08,
-    Tab              = 0x09,
-    CtrlJ           = 0x0A,
-    CtrlK           = 0x0B,
-    CtrlL           = 0x0C,
-    Enter            = 0x0D,
-    CtrlN           = 0x0E,
-    CtrlO           = 0x0F,
-    CtrlP           = 0x10,
-    CtrlQ           = 0x11,
-    CtrlR           = 0x12,
-    CtrlS           = 0x13,
-    CtrlT           = 0x14,
-    CtrlU           = 0x15,
-    CtrlV           = 0x16,
-    CtrlW           = 0x17,
-    CtrlX           = 0x18,
-    CtrlY           = 0x19,
-    CtrlZ           = 0x1A,
-    Esc              = 0x1B,
-    Ctrl4           = 0x1C,
-    Ctrl5           = 0x1D,
-    Ctrl6           = 0x1E,
-    Ctrl7           = 0x1F,
-    Space            = 0x20,
-    Backspace2       = 0x7F,
+    CtrlTilde = 0x00,
+    CtrlA = 0x01,
+    CtrlB = 0x02,
+    CtrlC = 0x03,
+    CtrlD = 0x04,
+    CtrlE = 0x05,
+    CtrlF = 0x06,
+    CtrlG = 0x07,
+    Backspace = 0x08,
+    Tab = 0x09,
+    CtrlJ = 0x0A,
+    CtrlK = 0x0B,
+    CtrlL = 0x0C,
+    Enter = 0x0D,
+    CtrlN = 0x0E,
+    CtrlO = 0x0F,
+    CtrlP = 0x10,
+    CtrlQ = 0x11,
+    CtrlR = 0x12,
+    CtrlS = 0x13,
+    CtrlT = 0x14,
+    CtrlU = 0x15,
+    CtrlV = 0x16,
+    CtrlW = 0x17,
+    CtrlX = 0x18,
+    CtrlY = 0x19,
+    CtrlZ = 0x1A,
+    Esc = 0x1B,
+    Ctrl4 = 0x1C,
+    Ctrl5 = 0x1D,
+    Ctrl6 = 0x1E,
+    Ctrl7 = 0x1F,
+    Space = 0x20,
+    Backspace2 = 0x7F,
 };
 
 pub const Modifier = enum(u8) {
@@ -107,7 +107,7 @@ pub const MouseEvent = struct {
     y: i32,
 };
 
-pub const Event = union (EventType) {
+pub const Event = union(EventType) {
     Key: KeyEvent,
     Resize: ResizeEvent,
     Mouse: MouseEvent,
@@ -179,7 +179,8 @@ pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event 
 
     // Functional key
     if (inbuf.span()[0] <= @enumToInt(Key.Space) or
-            inbuf.span()[0] == @enumToInt(Key.Backspace2)) {
+        inbuf.span()[0] == @enumToInt(Key.Backspace2))
+    {
         const key_ev = KeyEvent{
             .mod = 0,
             .key = std.mem.bytesToValue(u16, inbuf.span()[0..2]),
@@ -232,6 +233,7 @@ pub fn waitFillEvent(inout: File, buf: *Buffer, term: Term, settings: InputSetti
 
             const epfd = try std.os.epoll_create1(0);
             try std.os.epoll_ctl(epfd, std.os.EPOLL_CTL_ADD, inout.handle, &event);
+            _ = try debug_log.writeAll("waiting\n");
             _ = std.os.epoll_wait(epfd, &recieved_events, -1);
         }
     }

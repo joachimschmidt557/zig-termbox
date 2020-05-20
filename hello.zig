@@ -3,8 +3,6 @@ const std = @import("std");
 const termbox = @import("src/main.zig");
 const Termbox = termbox.Termbox;
 
-pub const io_mode = .evented;
-
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = &arena.allocator;

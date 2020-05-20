@@ -25,14 +25,14 @@ pub const Cursor = union(CursorState) {
     Visible: Pos,
 
     const Self = @This();
-    
+
     pub fn eql(self: Self, other: Self) bool {
         return switch (self) {
             .Hidden => other == .Hidden,
             .Visible => |self_pos| switch (other) {
                 .Hidden => false,
                 .Visible => |other_pos| self_pos.eql(other_pos),
-            }
+            },
         };
     }
 };

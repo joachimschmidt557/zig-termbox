@@ -6,7 +6,9 @@ const BufferedOutStream = std.io.BufferedOutStream;
 const File = std.fs.File;
 const bufferedOutStream = std.io.bufferedOutStream;
 
-const ioctl = @cImport({ @cInclude("sys/ioctl.h"); });
+const ioctl = @cImport({
+    @cInclude("sys/ioctl.h");
+});
 
 const wcwidth = @import("../wcwidth/src/main.zig").wcwidth;
 
@@ -39,11 +41,10 @@ const Attribute = enum(u16) {
 };
 
 const OutputMode = enum {
-    Current = 0,
-    Normal = 1,
-    Output256 = 2,
-    Output216 = 3,
-    Grayscale = 4,
+    Normal,
+    Output256,
+    Output216,
+    Grayscale,
 };
 
 fn writeSgr(out_stream: var, fg: u16, bg: u16, mode: OutputMode) !void {
@@ -54,26 +55,26 @@ fn writeSgr(out_stream: var, fg: u16, bg: u16, mode: OutputMode) !void {
         .Output256, .Output216, .Grayscale => {
             try out_stream.writeAll("\x1B[");
             if (fg != @enumToInt(Color.Default)) {
-                try out_stream.print("38;5;{}", .{ fg });
+                try out_stream.print("38;5;{}", .{fg});
                 if (bg != @enumToInt(Color.Default)) {
                     try out_stream.writeAll(";");
                 }
             }
             if (bg != @enumToInt(Color.Default)) {
-                try out_stream.print("48;5;{}", .{ bg });
+                try out_stream.print("48;5;{}", .{bg});
             }
             try out_stream.writeAll("m");
         },
-        .Normal, .Current => {
+        .Normal => {
             try out_stream.writeAll("\x1B[");
             if (fg != @enumToInt(Color.Default)) {
-                try out_stream.print("3{}", .{ fg - 1 });
+                try out_stream.print("3{}", .{fg - 1});
                 if (bg != @enumToInt(Color.Default)) {
                     try out_stream.writeAll(";");
                 }
             }
             if (bg != @enumToInt(Color.Default)) {
-                try out_stream.print("4{}", .{ bg - 1 });
+                try out_stream.print("4{}", .{bg - 1});
             }
             try out_stream.writeAll("m");
         },
@@ -142,18 +143,20 @@ pub const Termbox = struct {
         const tcflag_t = std.os.tcflag_t;
 
         tios.iflag &= ~(@intCast(tcflag_t, std.os.IGNBRK) | @intCast(tcflag_t, std.os.BRKINT) |
-                            @intCast(tcflag_t, std.os.PARMRK) | @intCast(tcflag_t, std.os.ISTRIP) |
-                            @intCast(tcflag_t, std.os.INLCR) | @intCast(tcflag_t, std.os.IGNCR) |
-                            @intCast(tcflag_t, std.os.ICRNL) | @intCast(tcflag_t, std.os.IXON));
+            @intCast(tcflag_t, std.os.PARMRK) | @intCast(tcflag_t, std.os.ISTRIP) |
+            @intCast(tcflag_t, std.os.INLCR) | @intCast(tcflag_t, std.os.IGNCR) |
+            @intCast(tcflag_t, std.os.ICRNL) | @intCast(tcflag_t, std.os.IXON));
         tios.oflag &= ~(@intCast(tcflag_t, std.os.OPOST));
         tios.lflag &= ~(@intCast(tcflag_t, std.os.ECHO) | @intCast(tcflag_t, std.os.ECHONL) |
-                            @intCast(tcflag_t, std.os.ICANON) | @intCast(tcflag_t, std.os.ISIG) |
-                            @intCast(tcflag_t, std.os.IEXTEN));
+            @intCast(tcflag_t, std.os.ICANON) | @intCast(tcflag_t, std.os.ISIG) |
+            @intCast(tcflag_t, std.os.IEXTEN));
         tios.cflag &= ~(@intCast(tcflag_t, std.os.CSIZE) | @intCast(tcflag_t, std.os.PARENB));
         tios.cflag |= @intCast(tcflag_t, std.os.CS8);
         // FIXME
-        // tios.cc[std.os.VMIN] = 0;
-        // tios.cc[std.os.VTIME] = 0;
+        const VMIN = 6;
+        const VTIME = 5;
+        tios.cc[VMIN] = 0;
+        tios.cc[VTIME] = 0;
         try std.os.tcsetattr(self.inout.handle, std.os.TCSA.FLUSH, tios);
 
         try self.output_buffer.outStream().writeAll(self.term.funcs.get(.EnterCa));
@@ -292,14 +295,14 @@ pub const Termbox = struct {
                 .Output256 => fg & 0xFF,
                 .Output216 => (if ((fg & 0xFF) <= 215) (fg & 0xFF) else 7) + 0x10,
                 .Grayscale => (if ((fg & 0xFF) <= 23) (fg & 0xFF) else 23) + 0xe8,
-                .Normal, .Current => fg & 0x0F,
+                .Normal => fg & 0x0F,
             };
 
             const bgcol = switch (self.output_mode) {
                 .Output256 => bg & 0xFF,
                 .Output216 => (if ((bg & 0xFF) <= 215) (bg & 0xFF) else 0) + 0x10,
                 .Grayscale => (if ((bg & 0xFF) <= 23) (bg & 0xFF) else 0) + 0xe8,
-                .Normal, .Current => bg & 0x0F,
+                .Normal => bg & 0x0F,
             };
 
             if (fg & @enumToInt(Attribute.Bold) > 0) {
