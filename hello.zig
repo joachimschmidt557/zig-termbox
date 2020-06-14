@@ -14,6 +14,10 @@ pub fn main() !void {
         t.back_buffer.get(i + 1, 1).ch = ch;
     }
     try t.present();
+
+    try t.setCursor(.{ .Visible = .{ .x = 10, .y = 10 } });
+    try t.present();
+
     const ev = try t.pollEvent();
     // std.debug.warn("{}\n", .{ try t.pollEvent() });
 }

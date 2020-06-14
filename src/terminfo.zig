@@ -8,7 +8,7 @@ fn tryPath(alloc: *Allocator, path: []const u8, term: []const u8) ?[]const u8 {
     const file = std.fs.openFileAbsolute(tmp, .{}) catch return null;
     defer file.close();
 
-    return file.inStream().readAllAlloc(alloc, std.math.maxInt(usize)) catch null;
+    return file.reader().readAllAlloc(alloc, std.math.maxInt(usize)) catch null;
 }
 
 pub fn loadTerminfo(alloc: *Allocator) !?[]const u8 {

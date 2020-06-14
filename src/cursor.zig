@@ -1,7 +1,7 @@
 const std = @import("std");
 
-pub fn writeCursor(out_stream: var, pos: Pos) !void {
-    try out_stream.print("\x1B[{};{}H", .{ pos.y + 1, pos.x + 1 });
+pub fn writeCursor(writer: var, pos: Pos) !void {
+    try writer.print("\x1B[{};{}H", .{ pos.y + 1, pos.x + 1 });
 }
 
 pub const Pos = struct {
@@ -15,12 +15,12 @@ pub const Pos = struct {
     }
 };
 
-pub const CursorState = enum {
+pub const Visibility = enum {
     Hidden,
     Visible,
 };
 
-pub const Cursor = union(CursorState) {
+pub const Cursor = union(Visibility) {
     Hidden,
     Visible: Pos,
 
@@ -35,4 +35,16 @@ pub const Cursor = union(CursorState) {
             },
         };
     }
+};
+
+pub const CursorState = struct {
+    hidden: bool,
+    pos: Pos,
+
+    const Self = @This();
+
+    pub const default = Self{
+        .hidden = false,
+        .pos = Pos{ .x = 0, .y = 0 },
+    };
 };

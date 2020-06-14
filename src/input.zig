@@ -132,6 +132,7 @@ fn parseMouseEvent(buf: []const u8) ?MouseEvent {
             .y = y,
         };
     } else if (std.mem.startsWith(u8, buf, "\x1B[")) {
+        if (buf[2] == '<') {}
         return null;
     } else {
         return null;
