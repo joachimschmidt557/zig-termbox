@@ -8,16 +8,21 @@ pub fn main() !void {
     const allocator = &arena.allocator;
 
     var t = try Termbox.init(allocator);
-    defer t.shutdown() catch {};
 
-    for ("Hello World") |ch, i| {
-        t.back_buffer.get(i + 1, 1).ch = ch;
-    }
+    var input_settings = t.input_settings;
+    input_settings.mouse = true;
+    try t.selectInputSettings(input_settings);
+
+    const writer = t.back_buffer.writer(1, 1);
+    try writer.print("Hello World!", .{});
     try t.present();
 
-    try t.setCursor(.{ .Visible = .{ .x = 10, .y = 10 } });
-    try t.present();
+    // try t.setCursor(.{ .Visible = .{ .x = 10, .y = 10 } });
+    // try t.present();
 
     const ev = try t.pollEvent();
-    // std.debug.warn("{}\n", .{ try t.pollEvent() });
+
+    t.shutdown() catch {};
+
+    std.debug.warn("{}\n", .{ev});
 }

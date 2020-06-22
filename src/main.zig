@@ -268,6 +268,11 @@ pub const Termbox = struct {
         self.back_buffer.clear(self.foreground, self.background);
     }
 
+    pub fn selectInputSettings(self: *Self, input_settings: InputSettings) !void {
+        try input_settings.applySettings(self.term, self.output_buffer.writer());
+        self.input_settings = input_settings;
+    }
+
     fn updateTermSize(self: *Self) void {
         var sz = std.mem.zeroes(ioctl.winsize);
 

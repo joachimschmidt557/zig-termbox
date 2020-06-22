@@ -102,7 +102,8 @@ pub const MouseAction = enum {
 };
 
 pub const MouseEvent = struct {
-    a: MouseAction,
+    action: MouseAction,
+    motion: bool,
     x: i32,
     y: i32,
 };
@@ -115,6 +116,8 @@ pub const Event = union(EventType) {
 
 fn parseMouseEvent(buf: []const u8) ?MouseEvent {
     if (buf.len >= 6 and std.mem.startsWith(u8, buf, "\x1B[M")) {
+        // X10 mouse encoding, the simplest one
+        // \033 [ M Cb Cx Cy
         const b = buf[3] - 32;
         const action = switch (b & 3) {
             0 => if (b & 64 != 0) MouseAction.MouseWheelUp else MouseAction.MouseLeft,
@@ -127,13 +130,49 @@ fn parseMouseEvent(buf: []const u8) ?MouseEvent {
         const y = @intCast(u8, buf[5] - 1 - 32);
 
         return MouseEvent{
-            .a = action,
+            .action = action,
+            .motion = (b & 32) != 0,
             .x = x,
             .y = y,
         };
     } else if (std.mem.startsWith(u8, buf, "\x1B[")) {
-        if (buf[2] == '<') {}
-        return null;
+        // xterm 1006 extended mode or urxvt 1015 extended mode
+        // xterm: \033 [ < Cb ; Cx ; Cy (M or m)
+        // urxvt: \033 [ Cb ; Cx ; Cy M
+        const is_u = !(buf.len >= 2 and buf[2] == '<');
+        const offset = if (is_u) 2 else @as(usize, 3);
+
+        var iter = std.mem.split(buf[offset..], ";");
+        const cb = iter.next() orelse return null;
+        const cx = iter.next() orelse return null;
+
+        const rest = iter.next() orelse return null;
+        const index_m = std.mem.indexOfAny(u8, rest, "mM") orelse return null;
+        const cy = rest[0..index_m];
+        const is_m = rest[index_m] == 'M';
+
+        const n1 = std.fmt.parseInt(u8, cb, 10) catch |e| std.debug.panic("{}", .{e});
+        const n2 = std.fmt.parseInt(u8, cx, 10) catch return null;
+        const n3 = std.fmt.parseInt(u8, cy, 10) catch return null;
+
+        const b = if (is_u) n1 - 32 else n1;
+        const x = n2 - 1;
+        const y = n3 - 1;
+
+        const action = switch (b & 3) {
+            0 => if (b & 64 != 0) MouseAction.MouseWheelUp else MouseAction.MouseLeft,
+            1 => if (b & 64 != 0) MouseAction.MouseWheelDown else MouseAction.MouseMiddle,
+            2 => MouseAction.MouseRight,
+            3 => MouseAction.MouseRelease,
+            else => return null,
+        };
+
+        return MouseEvent{
+            .action = action,
+            .motion = (b & 32) != 0,
+            .x = x,
+            .y = y,
+        };
     } else {
         return null;
     }
@@ -184,7 +223,7 @@ pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event 
     {
         const key_ev = KeyEvent{
             .mod = 0,
-            .key = std.mem.bytesToValue(u16, inbuf.span()[0..2]),
+            .key = @intCast(u16, inbuf.span()[0]),
             .ch = 0,
         };
         return Event{ .Key = key_ev };
@@ -193,14 +232,15 @@ pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event 
     // UTF-8
     if (std.unicode.utf8ByteSequenceLength(inbuf.items[0])) |utf8_len| {
         if (inbuf.items.len >= utf8_len) {
+            const decoded = std.unicode.utf8Decode(inbuf.span()[0..utf8_len]) catch unreachable;
             const key_ev = KeyEvent{
                 .mod = 0,
                 .key = 0,
-                .ch = @intCast(u32, std.unicode.utf8Decode(inbuf.span()[0..utf8_len]) catch unreachable),
+                .ch = @intCast(u32, decoded),
             };
             return Event{ .Key = key_ev };
         }
-    } else |_| {}
+    } else |err| {}
 
     return null;
 }
@@ -257,4 +297,12 @@ pub const InputSettings = struct {
         .mode = InputMode.Esc,
         .mouse = false,
     };
+
+    pub fn applySettings(self: Self, term: Term, writer: var) !void {
+        if (self.mouse) {
+            try writer.writeAll(term.funcs.get(.EnterMouse));
+        } else {
+            try writer.writeAll(term.funcs.get(.ExitMouse));
+        }
+    }
 };

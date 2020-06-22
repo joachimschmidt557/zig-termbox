@@ -146,8 +146,7 @@ pub const Term = struct {
 
         // Functions
         var funcs = try alloc.alloc([]const u8, t_funcs_num);
-        for (funcs) |*x, i| {
-            if (i >= t_funcs_num - 2) break;
+        for (funcs[0 .. t_funcs_num - 2]) |*x, i| {
             x.* = try terminfo.copyString(alloc, data, str_offset + 2 * ti_funcs[i], table_offset);
         }
         funcs[t_funcs_num - 2] = try std.mem.dupe(alloc, u8, enter_mouse_seq);

@@ -1,6 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const wcwidth = @import("../wcwidth/src/main.zig").wcwidth;
+
 pub const Cell = struct {
     ch: u32,
     fg: u16,
@@ -67,5 +69,34 @@ pub const CellBuffer = struct {
 
     pub fn get(self: *Self, x: usize, y: usize) *Cell {
         return &self.cells[y * self.width + x];
+    }
+
+    pub const Writer = struct {
+        cell_buffer: *Self,
+        start: usize,
+
+        const Error = error{InvalidUtf8};
+
+        pub fn write(context: Writer, bytes: []const u8) Error!usize {
+            const utf8_view = try std.unicode.Utf8View.init(bytes);
+
+            var iter = utf8_view.iterator();
+            var i: usize = context.start;
+            while (iter.nextCodepoint()) |c| {
+                context.cell_buffer.cells[i].ch = c;
+                i += @intCast(usize, wcwidth(c));
+            }
+
+            return bytes.len;
+        }
+    };
+
+    pub fn writer(self: *Self, x: usize, y: usize) std.io.Writer(Writer, Writer.Error, Writer.write) {
+        return .{
+            .context = Writer{
+                .cell_buffer = self,
+                .start = y * self.width + x,
+            },
+        };
     }
 };
