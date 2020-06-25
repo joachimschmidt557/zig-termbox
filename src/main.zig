@@ -10,7 +10,7 @@ const ioctl = @cImport({
     @cInclude("sys/ioctl.h");
 });
 
-const wcwidth = @import("../wcwidth/src/main.zig").wcwidth;
+const wcwidth = @import("wcwidth/src/main.zig").wcwidth;
 
 const term = @import("term.zig");
 const cellbuffer = @import("cellbuffer.zig");

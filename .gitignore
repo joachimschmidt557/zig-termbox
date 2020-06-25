@@ -1,4 +1,7 @@
 zig-cache/
-wcwidth/
+src/wcwidth/
 hello
 hello.o
+paint
+paint.o
+debug.log

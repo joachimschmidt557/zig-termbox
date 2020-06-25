@@ -104,8 +104,8 @@ pub const MouseAction = enum {
 pub const MouseEvent = struct {
     action: MouseAction,
     motion: bool,
-    x: i32,
-    y: i32,
+    x: usize,
+    y: usize,
 };
 
 pub const Event = union(EventType) {
