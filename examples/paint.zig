@@ -16,17 +16,16 @@ pub fn main() !void {
         .mouse = true,
     });
 
-    const writer = t.back_buffer.writer(1, 1);
-    try writer.print("Press any key to quit", .{});
+    var anchor = t.back_buffer.anchor(1, 1);
+    try anchor.writer().print("Press any key to quit", .{});
     try t.present();
 
     main: while (try t.pollEvent()) |ev| {
         switch (ev) {
             .Key => break :main,
-            .Mouse => |mouse_ev| {
-                t.back_buffer.get(mouse_ev.x, mouse_ev.y).bg = 0x08;
-            },
+            .Mouse => |mouse_ev| t.back_buffer.get(mouse_ev.x, mouse_ev.y).bg = 0x08,
             else => continue,
         }
+        try t.present();
     }
 }

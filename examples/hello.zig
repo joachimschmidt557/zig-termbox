@@ -10,11 +10,11 @@ pub fn main() !void {
     var t = try Termbox.init(allocator);
     defer t.shutdown() catch {};
 
-    const writer_hello = t.back_buffer.writer(1, 1);
-    try writer_hello.print("Hello World!", .{});
+    var anchor_hello = t.back_buffer.anchor(1, 1);
+    try anchor_hello.writer().print("Hello {}!", .{"World"});
 
-    const writer_quit = t.back_buffer.writer(1, 2);
-    try writer_quit.print("Press any key to quit", .{});
+    var anchor_quit = t.back_buffer.anchor(1, 2);
+    try anchor_quit.writer().print("Press any key to quit", .{});
 
     try t.present();
 

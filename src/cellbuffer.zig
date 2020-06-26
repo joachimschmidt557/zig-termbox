@@ -71,32 +71,33 @@ pub const CellBuffer = struct {
         return &self.cells[y * self.width + x];
     }
 
-    pub const Writer = struct {
+    pub const Anchor = struct {
         cell_buffer: *Self,
-        start: usize,
+        pos: usize,
 
         const Error = error{InvalidUtf8};
 
-        pub fn write(context: Writer, bytes: []const u8) Error!usize {
+        pub fn write(context: *Anchor, bytes: []const u8) Error!usize {
             const utf8_view = try std.unicode.Utf8View.init(bytes);
 
             var iter = utf8_view.iterator();
-            var i: usize = context.start;
             while (iter.nextCodepoint()) |c| {
-                context.cell_buffer.cells[i].ch = c;
-                i += @intCast(usize, wcwidth(c));
+                context.cell_buffer.cells[context.pos].ch = c;
+                context.pos += @intCast(usize, wcwidth(c));
             }
 
             return bytes.len;
         }
+
+        pub fn writer(self: *Anchor) std.io.Writer(*Anchor, Anchor.Error, Anchor.write) {
+            return .{ .context = self };
+        }
     };
 
-    pub fn writer(self: *Self, x: usize, y: usize) std.io.Writer(Writer, Writer.Error, Writer.write) {
-        return .{
-            .context = Writer{
-                .cell_buffer = self,
-                .start = y * self.width + x,
-            },
+    pub fn anchor(self: *Self, x: usize, y: usize) Anchor {
+        return Anchor{
+            .cell_buffer = self,
+            .pos = y * self.width + x,
         };
     }
 };
