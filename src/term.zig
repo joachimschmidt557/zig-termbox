@@ -149,8 +149,8 @@ pub const Term = struct {
         for (funcs[0 .. t_funcs_num - 2]) |*x, i| {
             x.* = try terminfo.copyString(alloc, data, str_offset + 2 * ti_funcs[i], table_offset);
         }
-        funcs[t_funcs_num - 2] = try std.mem.dupe(alloc, u8, enter_mouse_seq);
-        funcs[t_funcs_num - 1] = try std.mem.dupe(alloc, u8, exit_mouse_seq);
+        funcs[t_funcs_num - 2] = try alloc.dupe(u8, enter_mouse_seq);
+        funcs[t_funcs_num - 1] = try alloc.dupe(u8, exit_mouse_seq);
         result.funcs.data = funcs;
 
         return result;

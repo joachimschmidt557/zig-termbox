@@ -51,5 +51,5 @@ pub fn copyString(alloc: *Allocator, data: []const u8, str: i16, table: i16) ![]
     const src = std.mem.spanZ(src_ptr);
 
     // Duplicate
-    return try std.mem.dupe(alloc, u8, src);
+    return try alloc.dupe(u8, src);
 }
