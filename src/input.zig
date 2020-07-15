@@ -1,5 +1,5 @@
 const std = @import("std");
-const Buffer = std.ArrayList(u8);
+const Fifo = std.fifo.LinearFifo(u8, .{ .Static = 512 });
 const File = std.fs.File;
 
 const Term = @import("term.zig").Term;
@@ -114,11 +114,11 @@ pub const Event = union(EventType) {
     Mouse: MouseEvent,
 };
 
-fn parseMouseEvent(buf: []const u8) ?MouseEvent {
-    if (buf.len >= 6 and std.mem.startsWith(u8, buf, "\x1B[M")) {
+fn parseMouseEvent(fifo: *Fifo) ?MouseEvent {
+    if (fifo.readableLength() >= 6 and peekStartsWith(fifo, "\x1B[M")) {
         // X10 mouse encoding, the simplest one
         // \033 [ M Cb Cx Cy
-        const b = buf[3] - 32;
+        const b = fifo.peekItem(3) - 32;
         const action = switch (b & 3) {
             0 => if (b & 64 != 0) MouseAction.MouseWheelUp else MouseAction.MouseLeft,
             1 => if (b & 64 != 0) MouseAction.MouseWheelDown else MouseAction.MouseMiddle,
@@ -126,63 +126,74 @@ fn parseMouseEvent(buf: []const u8) ?MouseEvent {
             3 => MouseAction.MouseRelease,
             else => return null,
         };
-        const x = @intCast(u8, buf[4] - 1 - 32);
-        const y = @intCast(u8, buf[5] - 1 - 32);
+        const x = @intCast(u8, fifo.peekItem(4) - 1 - 32);
+        const y = @intCast(u8, fifo.peekItem(5) - 1 - 32);
 
+        fifo.discard(6);
         return MouseEvent{
             .action = action,
             .motion = (b & 32) != 0,
             .x = x,
             .y = y,
         };
-    } else if (std.mem.startsWith(u8, buf, "\x1B[")) {
+    } else if (peekStartsWith(fifo, "\x1B[")) {
         // xterm 1006 extended mode or urxvt 1015 extended mode
         // xterm: \033 [ < Cb ; Cx ; Cy (M or m)
         // urxvt: \033 [ Cb ; Cx ; Cy M
-        const is_u = !(buf.len >= 2 and buf[2] == '<');
-        const offset = if (is_u) 2 else @as(usize, 3);
+        // const is_u = !(buf.len >= 2 and buf[2] == '<');
+        // const offset = if (is_u) 2 else @as(usize, 3);
 
-        var iter = std.mem.split(buf[offset..], ";");
-        const cb = iter.next() orelse return null;
-        const cx = iter.next() orelse return null;
+        // var iter = std.mem.split(buf[offset..], ";");
+        // const cb = iter.next() orelse return null;
+        // const cx = iter.next() orelse return null;
 
-        const rest = iter.next() orelse return null;
-        const index_m = std.mem.indexOfAny(u8, rest, "mM") orelse return null;
-        const cy = rest[0..index_m];
-        const is_m = rest[index_m] == 'M';
+        // const rest = iter.next() orelse return null;
+        // const index_m = std.mem.indexOfAny(u8, rest, "mM") orelse return null;
+        // const cy = rest[0..index_m];
+        // const is_m = rest[index_m] == 'M';
 
-        const n1 = std.fmt.parseInt(u8, cb, 10) catch |e| std.debug.panic("{}", .{e});
-        const n2 = std.fmt.parseInt(u8, cx, 10) catch return null;
-        const n3 = std.fmt.parseInt(u8, cy, 10) catch return null;
+        // const n1 = std.fmt.parseInt(u8, cb, 10) catch |e| std.debug.panic("{}", .{e});
+        // const n2 = std.fmt.parseInt(u8, cx, 10) catch return null;
+        // const n3 = std.fmt.parseInt(u8, cy, 10) catch return null;
 
-        const b = if (is_u) n1 - 32 else n1;
-        const x = n2 - 1;
-        const y = n3 - 1;
+        // const b = if (is_u) n1 - 32 else n1;
+        // const x = n2 - 1;
+        // const y = n3 - 1;
 
-        const action = switch (b & 3) {
-            0 => if (b & 64 != 0) MouseAction.MouseWheelUp else MouseAction.MouseLeft,
-            1 => if (b & 64 != 0) MouseAction.MouseWheelDown else MouseAction.MouseMiddle,
-            2 => MouseAction.MouseRight,
-            3 => MouseAction.MouseRelease,
-            else => return null,
-        };
+        // const action = switch (b & 3) {
+        //     0 => if (b & 64 != 0) MouseAction.MouseWheelUp else MouseAction.MouseLeft,
+        //     1 => if (b & 64 != 0) MouseAction.MouseWheelDown else MouseAction.MouseMiddle,
+        //     2 => MouseAction.MouseRight,
+        //     3 => MouseAction.MouseRelease,
+        //     else => return null,
+        // };
 
-        return MouseEvent{
-            .action = action,
-            .motion = (b & 32) != 0,
-            .x = x,
-            .y = y,
-        };
+        // return MouseEvent{
+        //     .action = action,
+        //     .motion = (b & 32) != 0,
+        //     .x = x,
+        //     .y = y,
+        // };
+        return null;
     } else {
         return null;
     }
 }
 
-fn parseEscapeSequence(buf: []const u8, term: Term) ?Event {
-    if (parseMouseEvent(buf)) |x| return Event{ .Mouse = x };
+fn peekStartsWith(fifo: *Fifo, needle: []const u8) bool {
+    if (needle.len > fifo.readableLength()) return false;
+
+    return for (needle) |x, i| {
+        if (x != fifo.peekItem(i)) break false;
+    } else true;
+}
+
+fn parseEscapeSequence(fifo: *Fifo, term: Term) ?Event {
+    if (parseMouseEvent(fifo)) |x| return Event{ .Mouse = x };
 
     for (term.keys.data) |k, i| {
-        if (std.mem.startsWith(u8, buf, k)) {
+        if (peekStartsWith(fifo, k)) {
+            fifo.discard(k.len);
             const key_ev = KeyEvent{
                 .mod = 0,
                 .key = 0xFFFF - @intCast(u16, i),
@@ -195,12 +206,13 @@ fn parseEscapeSequence(buf: []const u8, term: Term) ?Event {
     return null;
 }
 
-pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event {
-    if (inbuf.items.len == 0) return null;
+pub fn extractEvent(fifo: *Fifo, term: Term, settings: InputSettings) ?Event {
+    // If the FIFO is empty, return null
+    if (fifo.readableLength() == 0) return null;
 
     // Escape
-    if (inbuf.items[0] == '\x1B') {
-        if (parseEscapeSequence(inbuf.items, term)) |x| {
+    if (fifo.peekItem(0) == '\x1B') {
+        if (parseEscapeSequence(fifo, term)) |x| {
             return x;
         } else {
             switch (settings.mode) {
@@ -218,21 +230,23 @@ pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event 
     }
 
     // Functional key
-    if (inbuf.span()[0] <= @enumToInt(Key.Space) or
-        inbuf.span()[0] == @enumToInt(Key.Backspace2))
+    if (fifo.peekItem(0) <= @enumToInt(Key.Space) or
+        fifo.peekItem(0) == @enumToInt(Key.Backspace2))
     {
         const key_ev = KeyEvent{
             .mod = 0,
-            .key = @intCast(u16, inbuf.span()[0]),
+            .key = @intCast(u16, fifo.readItem() orelse unreachable),
             .ch = 0,
         };
         return Event{ .Key = key_ev };
     }
 
     // UTF-8
-    if (std.unicode.utf8ByteSequenceLength(inbuf.items[0])) |utf8_len| {
-        if (inbuf.items.len >= utf8_len) {
-            const decoded = std.unicode.utf8Decode(inbuf.span()[0..utf8_len]) catch unreachable;
+    if (std.unicode.utf8ByteSequenceLength(fifo.peekItem(0))) |utf8_len| {
+        if (fifo.readableLength() >= utf8_len) {
+            var buf: [3]u8 = undefined;
+            const amt = try fifo.reader().readAll(buf[0..utf8_len]);
+            const decoded = std.unicode.utf8Decode(buf[0..amt]) catch unreachable;
             const key_ev = KeyEvent{
                 .mod = 0,
                 .key = 0,
@@ -240,12 +254,15 @@ pub fn extractEvent(inbuf: *Buffer, term: Term, settings: InputSettings) ?Event 
             };
             return Event{ .Key = key_ev };
         }
-    } else |err| {}
+    } else |err| {
+        // Quietly discard this byte
+        fifo.discard(1);
+    }
 
     return null;
 }
 
-pub fn waitFillEvent(inout: File, buf: *Buffer, term: Term, settings: InputSettings) !?Event {
+pub fn waitFillEvent(inout: File, fifo: *Fifo, term: Term, settings: InputSettings) !?Event {
     var debug_log = try std.fs.cwd().createFile("debug.log", .{});
     defer debug_log.close();
 
@@ -254,13 +271,13 @@ pub fn waitFillEvent(inout: File, buf: *Buffer, term: Term, settings: InputSetti
         var b: [64]u8 = undefined;
         while (true) {
             const amt_read = try inout.readAll(&b);
-            try buf.appendSlice(b[0..amt_read]);
+            try fifo.write(b[0..amt_read]);
             if (amt_read < 64) break;
         }
 
         _ = try debug_log.writeAll("here\n");
 
-        if (extractEvent(buf, term, settings)) |x| {
+        if (extractEvent(fifo, term, settings)) |x| {
             return x;
         } else {
             // Wait for events
@@ -298,7 +315,7 @@ pub const InputSettings = struct {
         .mouse = false,
     };
 
-    pub fn applySettings(self: Self, term: Term, writer: var) !void {
+    pub fn applySettings(self: Self, term: Term, writer: anytype) !void {
         if (self.mouse) {
             try writer.writeAll(term.funcs.get(.EnterMouse));
         } else {

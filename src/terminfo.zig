@@ -5,10 +5,7 @@ fn tryPath(alloc: *Allocator, path: []const u8, term: []const u8) ?[]const u8 {
     const tmp = std.fmt.allocPrint(alloc, "{}/{}/{}", .{ path, &[_]u8{term[0]}, term }) catch return null;
     defer alloc.free(tmp);
 
-    const file = std.fs.openFileAbsolute(tmp, .{}) catch return null;
-    defer file.close();
-
-    return file.reader().readAllAlloc(alloc, std.math.maxInt(usize)) catch null;
+    return std.fs.cwd().readFileAlloc(alloc, tmp, std.math.maxInt(usize)) catch null;
 }
 
 pub fn loadTerminfo(alloc: *Allocator) !?[]const u8 {

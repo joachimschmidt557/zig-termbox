@@ -1,9 +1,9 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
-const Buffer = ArrayList(u8);
 const BufferedWriter = std.io.BufferedWriter;
 const File = std.fs.File;
+const Fifo = std.fifo.LinearFifo(u8, .{ .Static = 512 });
 const bufferedWriter = std.io.bufferedWriter;
 
 const ioctl = @cImport({
@@ -37,7 +37,7 @@ const OutputMode = enum {
     Grayscale,
 };
 
-fn writeSgr(writer: var, fg: u16, bg: u16, mode: OutputMode) !void {
+fn writeSgr(writer: anytype, fg: u16, bg: u16, mode: OutputMode) !void {
     if (fg == @enumToInt(Color.Default) and bg == @enumToInt(Color.Default))
         return;
 
@@ -82,7 +82,7 @@ pub const Termbox = struct {
     back_buffer: CellBuffer,
     front_buffer: CellBuffer,
     output_buffer: BufferedWriter(4096, File.Writer),
-    input_buffer: Buffer,
+    input_buffer: Fifo,
 
     term: term.Term,
     term_w: usize,
@@ -113,7 +113,7 @@ pub const Termbox = struct {
             .back_buffer = undefined,
             .front_buffer = undefined,
             .output_buffer = bufferedWriter(file.writer()),
-            .input_buffer = Buffer.init(allocator),
+            .input_buffer = Fifo.init(),
 
             .term = try term.Term.initTerm(allocator),
             .term_w = 0,

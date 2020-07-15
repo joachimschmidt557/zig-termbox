@@ -89,6 +89,10 @@ pub const CellBuffer = struct {
             return bytes.len;
         }
 
+        pub fn move(self: *Anchor, x: usize, y: usize) void {
+            self.pos = y * self.cell_buffer.width + x;
+        }
+
         pub fn writer(self: *Anchor) std.io.Writer(*Anchor, Anchor.Error, Anchor.write) {
             return .{ .context = self };
         }
