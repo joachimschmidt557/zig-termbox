@@ -84,7 +84,7 @@ pub const EventType = enum {
 pub const KeyEvent = struct {
     mod: u8,
     key: u16,
-    ch: u32,
+    ch: u21,
 };
 
 pub const ResizeEvent = struct {
@@ -250,7 +250,7 @@ pub fn extractEvent(fifo: *Fifo, term: Term, settings: InputSettings) ?Event {
             const key_ev = KeyEvent{
                 .mod = 0,
                 .key = 0,
-                .ch = @intCast(u32, decoded),
+                .ch = @intCast(u21, decoded),
             };
             return Event{ .Key = key_ev };
         }

@@ -322,7 +322,7 @@ pub const Termbox = struct {
         }
     }
 
-    fn sendChar(self: *Self, x: usize, y: usize, c: u32) !void {
+    fn sendChar(self: *Self, x: usize, y: usize, c: u21) !void {
         const wanted_pos = Pos{ .x = x, .y = y };
         if (!self.cursor_state.pos.eql(wanted_pos)) {
             try cursor.writeCursor(self.output_buffer.writer(), cursor.Pos{ .x = x, .y = y });
