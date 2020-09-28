@@ -140,41 +140,63 @@ fn parseMouseEvent(fifo: *Fifo) ?MouseEvent {
         // xterm 1006 extended mode or urxvt 1015 extended mode
         // xterm: \033 [ < Cb ; Cx ; Cy (M or m)
         // urxvt: \033 [ Cb ; Cx ; Cy M
-        // const is_u = !(buf.len >= 2 and buf[2] == '<');
-        // const offset = if (is_u) 2 else @as(usize, 3);
+        const is_u = !(fifo.count >= 2 and fifo.peekItem(2) == '<');
+        const offset = if (is_u) 2 else @as(usize, 3);
 
-        // var iter = std.mem.split(buf[offset..], ";");
-        // const cb = iter.next() orelse return null;
-        // const cx = iter.next() orelse return null;
+        var buf: [32]u8 = undefined;
+        var read_n = fifo.read(buf[0..]);
+        var read = buf[0..read_n];
 
-        // const rest = iter.next() orelse return null;
-        // const index_m = std.mem.indexOfAny(u8, rest, "mM") orelse return null;
-        // const cy = rest[0..index_m];
-        // const is_m = rest[index_m] == 'M';
+        var iter = std.mem.split(read[offset..], ";");
 
-        // const n1 = std.fmt.parseInt(u8, cb, 10) catch |e| std.debug.panic("{}", .{e});
-        // const n2 = std.fmt.parseInt(u8, cx, 10) catch return null;
-        // const n3 = std.fmt.parseInt(u8, cy, 10) catch return null;
+        // Get the absolute index of m/M in the buffer to unget the data past
+        // it before returning.
+        const abs_index_m = std.mem.indexOfAny(u8, read, "mM") orelse {
+            fifo.unget(read) catch unreachable;
+            return null;
+        };
 
-        // const b = if (is_u) n1 - 32 else n1;
-        // const x = n2 - 1;
-        // const y = n3 - 1;
+        const cb = iter.next();
+        const cx = iter.next();
+        const rest = iter.next();
 
-        // const action = switch (b & 3) {
-        //     0 => if (b & 64 != 0) MouseAction.MouseWheelUp else MouseAction.MouseLeft,
-        //     1 => if (b & 64 != 0) MouseAction.MouseWheelDown else MouseAction.MouseMiddle,
-        //     2 => MouseAction.MouseRight,
-        //     3 => MouseAction.MouseRelease,
-        //     else => return null,
-        // };
+        if (cb == null or cx == null or rest == null) {
+            fifo.unget(read) catch unreachable;
+            return null;
+        }
 
-        // return MouseEvent{
-        //     .action = action,
-        //     .motion = (b & 32) != 0,
-        //     .x = x,
-        //     .y = y,
-        // };
-        return null;
+        // Add cb, cx offset and 2 (to account for the ';').
+        const index_m = abs_index_m - (cb.?.len + cx.?.len + offset + 2);
+
+        const cy = rest.?[0..index_m];
+        const is_m = rest.?[index_m] == 'M';
+
+        const n1 = std.fmt.parseInt(u8, cb.?, 10) catch |e| std.debug.panic("{}", .{e});
+        const n2 = std.fmt.parseInt(u8, cx.?, 10) catch return null;
+        const n3 = std.fmt.parseInt(u8, cy, 10) catch return null;
+
+        const b = if (is_u) n1 - 32 else n1;
+        const x = n2 - 1;
+        const y = n3 - 1;
+
+        const action = switch (b & 3) {
+            0 => if (b & 64 != 0) MouseAction.MouseWheelUp else MouseAction.MouseLeft,
+            1 => if (b & 64 != 0) MouseAction.MouseWheelDown else MouseAction.MouseMiddle,
+            2 => MouseAction.MouseRight,
+            3 => MouseAction.MouseRelease,
+            else => return null,
+        };
+
+        if (abs_index_m + 1 < read_n) {
+            fifo.unget(read[abs_index_m + 1 .. read_n]) catch unreachable;
+        }
+
+        return MouseEvent{
+            .action = action,
+            .motion = (b & 32) != 0,
+            .x = x,
+            .y = y,
+        };
     } else {
         return null;
     }
