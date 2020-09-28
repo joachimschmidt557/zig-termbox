@@ -1,5 +1,4 @@
 zig-cache/
-src/wcwidth/
 hello
 hello.o
 paint

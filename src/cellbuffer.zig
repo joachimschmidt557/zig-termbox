@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const wcwidth = @import("wcwidth/src/main.zig").wcwidth;
+const wcwidth = @import("zig-wcwidth/src/main.zig").wcwidth;
 
 pub const Cell = struct {
     ch: u21,

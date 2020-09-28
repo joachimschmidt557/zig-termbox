@@ -10,7 +10,8 @@ const ioctl = @cImport({
     @cInclude("sys/ioctl.h");
 });
 
-const wcwidth = @import("wcwidth/src/main.zig").wcwidth;
+const wcwidth = @import("zig-wcwidth/src/main.zig").wcwidth;
+const writeCursor = @import("zig-ansi-term/src/cursor.zig").setCursor;
 
 const term = @import("term.zig");
 const cellbuffer = @import("cellbuffer.zig");
@@ -233,7 +234,7 @@ pub const Termbox = struct {
             }
         }
         switch (self.cursor) {
-            .Visible => |pos| try cursor.writeCursor(self.output_buffer.writer(), pos),
+            .Visible => |pos| try writeCursor(self.output_buffer.writer(), pos.x, pos.y),
             else => {},
         }
         try self.output_buffer.flush();
@@ -252,7 +253,7 @@ pub const Termbox = struct {
                 if (self.cursor == .Hidden) {
                     try writer.writeAll(self.term.funcs.get(.ShowCursor));
                 }
-                try cursor.writeCursor(writer, pos);
+                try writeCursor(writer, pos.x, pos.y);
                 self.cursor_state.pos = pos;
             },
         }
@@ -325,7 +326,7 @@ pub const Termbox = struct {
     fn sendChar(self: *Self, x: usize, y: usize, c: u21) !void {
         const wanted_pos = Pos{ .x = x, .y = y };
         if (!self.cursor_state.pos.eql(wanted_pos)) {
-            try cursor.writeCursor(self.output_buffer.writer(), cursor.Pos{ .x = x, .y = y });
+            try writeCursor(self.output_buffer.writer(), x, y);
             self.cursor_state.pos = wanted_pos;
         }
 

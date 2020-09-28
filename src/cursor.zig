@@ -1,9 +1,5 @@
 const std = @import("std");
 
-pub fn writeCursor(writer: anytype, pos: Pos) !void {
-    try writer.print("\x1B[{};{}H", .{ pos.y + 1, pos.x + 1 });
-}
-
 pub const Pos = struct {
     x: usize,
     y: usize,

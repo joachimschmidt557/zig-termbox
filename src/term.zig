@@ -22,32 +22,31 @@ const t_keys_num = 22;
 const t_funcs_num = 14;
 
 pub const TermFunc = enum {
-    EnterCa = 0,
-    ExitCa = 1,
-    ShowCursor = 2,
-    HideCursor = 3,
-    ClearScreen = 4,
-    Sgr0 = 5,
-    Underline = 6,
-    Bold = 7,
-    Blink = 8,
-    Reverse = 9,
-    EnterKeypad = 10,
-    ExitKeypad = 11,
-    EnterMouse = 12,
-    ExitMouse = 13,
+    EnterCa,
+    ExitCa,
+    ShowCursor,
+    HideCursor,
+    ClearScreen,
+    Sgr0,
+    Underline,
+    Bold,
+    Blink,
+    Reverse,
+    EnterKeypad,
+    ExitKeypad,
+    EnterMouse,
+    ExitMouse,
 };
 
 pub const TermFuncs = struct {
-    alloc: ?*Allocator,
-    data: []const []const u8,
+    allocator: ?*Allocator,
+    data: [t_funcs_num][]const u8,
 
     const Self = @This();
 
     pub fn deinit(self: *Self) void {
-        if (self.alloc) |a| {
+        if (self.allocator) |a| {
             for (self.data) |x| a.free(x);
-            a.free(self.data);
         }
     }
 
@@ -57,15 +56,14 @@ pub const TermFuncs = struct {
 };
 
 pub const TermKeys = struct {
-    alloc: ?*Allocator,
-    data: []const []const u8,
+    allocator: ?*Allocator,
+    data: [t_keys_num][]const u8,
 
     const Self = @This();
 
     pub fn deinit(self: *Self) void {
-        if (self.alloc) |a| {
+        if (self.allocator) |a| {
             for (self.data) |x| a.free(x);
-            a.free(self.data);
         }
     }
 };
@@ -107,18 +105,18 @@ pub const Term = struct {
         return error.UnsupportedTerm;
     }
 
-    pub fn initTerm(alloc: *Allocator) !Self {
-        const data = (try terminfo.loadTerminfo(alloc)) orelse return initTermBuiltin();
-        defer alloc.free(data);
+    pub fn initTerm(allocator: *Allocator) !Self {
+        const data = (try terminfo.loadTerminfo(allocator)) orelse return initTermBuiltin();
+        defer allocator.free(data);
 
         var result: Self = Self{
             .name = "",
             .keys = TermKeys{
-                .alloc = alloc,
+                .allocator = allocator,
                 .data = undefined,
             },
             .funcs = TermFuncs{
-                .alloc = alloc,
+                .allocator = allocator,
                 .data = undefined,
             },
         };
@@ -138,20 +136,16 @@ pub const Term = struct {
         const table_offset = str_offset + 2 * header_4;
 
         // Keys
-        var keys = try alloc.alloc([]const u8, t_keys_num);
-        for (keys) |*x, i| {
-            x.* = try terminfo.copyString(alloc, data, str_offset + 2 * ti_keys[i], table_offset);
+        for (result.keys.data) |*x, i| {
+            x.* = try terminfo.copyString(allocator, data, str_offset + 2 * ti_keys[i], table_offset);
         }
-        result.keys.data = keys;
 
         // Functions
-        var funcs = try alloc.alloc([]const u8, t_funcs_num);
-        for (funcs[0 .. t_funcs_num - 2]) |*x, i| {
-            x.* = try terminfo.copyString(alloc, data, str_offset + 2 * ti_funcs[i], table_offset);
+        for (result.funcs.data[0 .. t_funcs_num - 2]) |*x, i| {
+            x.* = try terminfo.copyString(allocator, data, str_offset + 2 * ti_funcs[i], table_offset);
         }
-        funcs[t_funcs_num - 2] = try alloc.dupe(u8, enter_mouse_seq);
-        funcs[t_funcs_num - 1] = try alloc.dupe(u8, exit_mouse_seq);
-        result.funcs.data = funcs;
+        result.funcs.data[t_funcs_num - 2] = try allocator.dupe(u8, enter_mouse_seq);
+        result.funcs.data[t_funcs_num - 1] = try allocator.dupe(u8, exit_mouse_seq);
 
         return result;
     }
@@ -163,8 +157,8 @@ pub const Term = struct {
 };
 
 const rxvt_256color_keys = TermKeys{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1B[11~", "\x1B[12~", "\x1B[13~", "\x1B[14~", "\x1B[15~", "\x1B[17~",
         "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
         "\x1B[2~",  "\x1B[3~",  "\x1B[7~",  "\x1B[8~",  "\x1B[5~",  "\x1B[6~",
@@ -172,8 +166,8 @@ const rxvt_256color_keys = TermKeys{
     },
 };
 const rxvt_256color_funcs = TermFuncs{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1B7\x1B[?47h", "\x1B[2J\x1B[?47l\x1B8",
         "\x1B[?25h",      "\x1B[?25l",
         "\x1B[H\x1B[2J",  "\x1B[m",
@@ -185,8 +179,8 @@ const rxvt_256color_funcs = TermFuncs{
 };
 
 const eterm_keys = TermKeys{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1B[11~", "\x1B[12~", "\x1B[13~", "\x1B[14~", "\x1B[15~", "\x1B[17~",
         "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
         "\x1B[2~",  "\x1B[3~",  "\x1B[7~",  "\x1B[8~",  "\x1B[5~",  "\x1B[6~",
@@ -194,8 +188,8 @@ const eterm_keys = TermKeys{
     },
 };
 const eterm_funcs = TermFuncs{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1B7\x1B[?47h", "\x1B[2J\x1B[?47l\x1B8", "\x1B[?25h", "\x1B[?25l",
         "\x1B[H\x1B[2J",  "\x1B[m",                "\x1B[4m",   "\x1B[1m",
         "\x1B[5m",        "\x1B[7m",               "",          "",
@@ -204,8 +198,8 @@ const eterm_funcs = TermFuncs{
 };
 
 const screen_keys = TermKeys{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1BOP",   "\x1BOQ",   "\x1BOR",   "\x1BOS",   "\x1B[15~", "\x1B[17~",
         "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
         "\x1B[2~",  "\x1B[3~",  "\x1B[1~",  "\x1B[4~",  "\x1B[5~",  "\x1B[6~",
@@ -213,8 +207,8 @@ const screen_keys = TermKeys{
     },
 };
 const screen_funcs = TermFuncs{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1B[?1049h",   "\x1B[?1049l",  "\x1B[34h\x1B[?25h", "\x1B[?25l",
         "\x1B[H\x1B[J",  "\x1B[m",       "\x1B[4m",           "\x1B[1m",
         "\x1B[5m",       "\x1B[7m",      "\x1B[?1h\x1B=",     "\x1B[?1l\x1B>",
@@ -223,8 +217,8 @@ const screen_funcs = TermFuncs{
 };
 
 const rxvt_unicode_keys = TermKeys{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1B[11~", "\x1B[12~", "\x1B[13~", "\x1B[14~", "\x1B[15~", "\x1B[17~",
         "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
         "\x1B[2~",  "\x1B[3~",  "\x1B[7~",  "\x1B[8~",  "\x1B[5~",  "\x1B[6~",
@@ -232,8 +226,8 @@ const rxvt_unicode_keys = TermKeys{
     },
 };
 const rxvt_unicode_funcs = TermFuncs{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1B[?1049h",   "\x1B[r\x1B[?1049l", "\x1B[?25h", "\x1B[?25l",
         "\x1B[H\x1B[2J", "\x1B[m\x1B(B",      "\x1B[4m",   "\x1B[1m",
         "\x1B[5m",       "\x1B[7m",           "\x1B=",     "\x1B>",
@@ -242,8 +236,8 @@ const rxvt_unicode_funcs = TermFuncs{
 };
 
 const linux_keys = TermKeys{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1B[[A",  "\x1B[[B",  "\x1B[[C",  "\x1B[[D",  "\x1B[[E",  "\x1B[17~",
         "\x1B[18~", "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~",
         "\x1B[2~",  "\x1B[3~",  "\x1B[1~",  "\x1B[4~",  "\x1B[5~",  "\x1B[6~",
@@ -251,8 +245,8 @@ const linux_keys = TermKeys{
     },
 };
 const linux_funcs = TermFuncs{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "",           "",        "\x1B[?25h\x1B[?0c", "\x1B[?25l\x1B[?1c", "\x1B[H\x1B[J",
         "\x1B[0;10m", "\x1B[4m", "\x1B[1m",           "\x1B[5m",           "\x1B[7m",
         "",           "",        "",                  "",
@@ -260,8 +254,8 @@ const linux_funcs = TermFuncs{
 };
 
 const xterm_keys = TermKeys{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1BOP",   "\x1BOQ",   "\x1BOR",   "\x1BOS",   "\x1B[15~", "\x1B[17~", "\x1B[18~",
         "\x1B[19~", "\x1B[20~", "\x1B[21~", "\x1B[23~", "\x1B[24~", "\x1B[2~",  "\x1B[3~",
         "\x1BOH",   "\x1BOF",   "\x1B[5~",  "\x1B[6~",  "\x1BOA",   "\x1BOB",   "\x1BOD",
@@ -269,8 +263,8 @@ const xterm_keys = TermKeys{
     },
 };
 const xterm_funcs = TermFuncs{
-    .alloc = null,
-    .data = &[_][]const u8{
+    .allocator = null,
+    .data = [_][]const u8{
         "\x1B[?1049h",   "\x1B[?1049l",  "\x1B[?12l\x1B[?25h", "\x1B[?25l",
         "\x1B[H\x1B[2J", "\x1B(B\x1B[m", "\x1B[4m",            "\x1B[1m",
         "\x1B[5m",       "\x1B[7m",      "\x1B[?1h\x1B=",      "\x1B[?1l\x1B>",
