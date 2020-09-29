@@ -6,10 +6,6 @@ const File = std.fs.File;
 const Fifo = std.fifo.LinearFifo(u8, .{ .Static = 512 });
 const bufferedWriter = std.io.bufferedWriter;
 
-const ioctl = @cImport({
-    @cInclude("sys/ioctl.h");
-});
-
 const wcwidth = @import("zig-wcwidth/src/main.zig").wcwidth;
 const writeCursor = @import("zig-ansi-term/src/cursor.zig").setCursor;
 
@@ -275,9 +271,9 @@ pub const Termbox = struct {
     }
 
     fn updateTermSize(self: *Self) void {
-        var sz = std.mem.zeroes(ioctl.winsize);
+        var sz = std.mem.zeroes(std.os.linux.winsize);
 
-        _ = ioctl.ioctl(self.inout.handle, ioctl.TIOCGWINSZ, &sz);
+        _ = std.os.linux.ioctl(self.inout.handle, std.os.linux.TIOCGWINSZ, @ptrToInt(&sz));
 
         self.term_w = sz.ws_col;
         self.term_h = sz.ws_row;
