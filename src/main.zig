@@ -286,7 +286,7 @@ pub const Termbox = struct {
     fn sendAttr(self: *Self, fg: u16, bg: u16) !void {
         const writer = self.output_buffer.writer();
 
-        if (self.last_fg != fg and self.last_bg != bg) {
+        if (self.last_fg != fg or self.last_bg != bg) {
             try writer.writeAll(self.term.funcs.get(.Sgr0));
 
             const fgcol = switch (self.output_mode) {
