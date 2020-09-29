@@ -312,6 +312,8 @@ pub fn waitFillEvent(inout: File, fifo: *Fifo, term: Term, settings: InputSettin
             var recieved_events: [1]std.os.epoll_event = undefined;
 
             const epfd = try std.os.epoll_create1(0);
+            defer std.os.close(epfd);
+
             try std.os.epoll_ctl(epfd, std.os.EPOLL_CTL_ADD, inout.handle, &event);
             _ = try debug_log.writeAll("waiting\n");
             _ = std.os.epoll_wait(epfd, &recieved_events, -1);
