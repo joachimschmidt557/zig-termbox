@@ -11,7 +11,13 @@ const ioctl = @cImport({
 });
 
 const wcwidth = @import("zig-wcwidth/src/main.zig").wcwidth;
+const updateStyle = @import("zig-ansi-term/src/format.zig").updateStyle;
 const writeCursor = @import("zig-ansi-term/src/cursor.zig").setCursor;
+
+pub const Style = @import("zig-ansi-term/src/style.zig").Style;
+pub const Color = @import("zig-ansi-term/src/style.zig").Color;
+pub const ColorRGB = @import("zig-ansi-term/src/style.zig").ColorRGB;
+pub const FontStyle = @import("zig-ansi-term/src/style.zig").FontStyle;
 
 const term = @import("term.zig");
 const cellbuffer = @import("cellbuffer.zig");
@@ -27,50 +33,12 @@ const input = @import("input.zig");
 pub const Event = input.Event;
 pub const InputSettings = input.InputSettings;
 
-const style = @import("style.zig");
-pub const Color = style.Color;
-pub const Attribute = style.Attribute;
-
 const OutputMode = enum {
     Normal,
     Output256,
     Output216,
     Grayscale,
 };
-
-fn writeSgr(writer: anytype, fg: u16, bg: u16, mode: OutputMode) !void {
-    if (fg == @enumToInt(Color.Default) and bg == @enumToInt(Color.Default))
-        return;
-
-    switch (mode) {
-        .Output256, .Output216, .Grayscale => {
-            try writer.writeAll("\x1B[");
-            if (fg != @enumToInt(Color.Default)) {
-                try writer.print("38;5;{}", .{fg});
-                if (bg != @enumToInt(Color.Default)) {
-                    try writer.writeAll(";");
-                }
-            }
-            if (bg != @enumToInt(Color.Default)) {
-                try writer.print("48;5;{}", .{bg});
-            }
-            try writer.writeAll("m");
-        },
-        .Normal => {
-            try writer.writeAll("\x1B[");
-            if (fg != @enumToInt(Color.Default)) {
-                try writer.print("3{}", .{fg - 1});
-                if (bg != @enumToInt(Color.Default)) {
-                    try writer.writeAll(";");
-                }
-            }
-            if (bg != @enumToInt(Color.Default)) {
-                try writer.print("4{}", .{bg - 1});
-            }
-            try writer.writeAll("m");
-        },
-    }
-}
 
 pub const Termbox = struct {
     alloc: *Allocator,
@@ -95,10 +63,7 @@ pub const Termbox = struct {
     cursor: Cursor,
     cursor_state: CursorState,
 
-    foreground: u16,
-    background: u16,
-    last_fg: u16,
-    last_bg: u16,
+    current_style: Style,
 
     const Self = @This();
 
@@ -126,10 +91,7 @@ pub const Termbox = struct {
             .cursor = Cursor.Hidden,
             .cursor_state = CursorState.default,
 
-            .foreground = @enumToInt(Color.Default),
-            .background = @enumToInt(Color.Default),
-            .last_fg = 0xFFFF,
-            .last_bg = 0xFFFF,
+            .current_style = Style{},
         };
 
         var tios = self.orig_tios;
@@ -160,8 +122,8 @@ pub const Termbox = struct {
         self.updateTermSize();
         self.back_buffer = try CellBuffer.init(allocator, self.term_w, self.term_h);
         self.front_buffer = try CellBuffer.init(allocator, self.term_w, self.term_h);
-        self.back_buffer.clear(self.foreground, self.background);
-        self.front_buffer.clear(self.foreground, self.background);
+        self.back_buffer.clear(self.current_style);
+        self.front_buffer.clear(self.current_style);
 
         return self;
     }
@@ -212,7 +174,10 @@ pub const Termbox = struct {
                 }
 
                 front.* = back.*;
-                try self.sendAttr(back.fg, back.bg);
+
+                try updateStyle(self.output_buffer.writer(), back.style, self.current_style);
+                self.current_style = back.style;
+
                 if (x + w >= self.front_buffer.width) {
                     var i = x;
                     while (i < self.front_buffer.width) : (i += 1) {
@@ -224,8 +189,7 @@ pub const Termbox = struct {
                     while (i < x + w) : (i += 1) {
                         self.front_buffer.get(i, y).* = Cell{
                             .ch = 0,
-                            .fg = back.fg,
-                            .bg = back.bg,
+                            .style = back.style,
                         };
                     }
                 }
@@ -233,6 +197,7 @@ pub const Termbox = struct {
                 x += w;
             }
         }
+
         switch (self.cursor) {
             .Visible => |pos| try writeCursor(self.output_buffer.writer(), pos.x, pos.y),
             else => {},
@@ -283,46 +248,6 @@ pub const Termbox = struct {
         self.term_h = sz.ws_row;
     }
 
-    fn sendAttr(self: *Self, fg: u16, bg: u16) !void {
-        const writer = self.output_buffer.writer();
-
-        if (self.last_fg != fg or self.last_bg != bg) {
-            try writer.writeAll(self.term.funcs.get(.Sgr0));
-
-            const fgcol = switch (self.output_mode) {
-                .Output256 => fg & 0xFF,
-                .Output216 => (if ((fg & 0xFF) <= 215) (fg & 0xFF) else 7) + 0x10,
-                .Grayscale => (if ((fg & 0xFF) <= 23) (fg & 0xFF) else 23) + 0xe8,
-                .Normal => fg & 0x0F,
-            };
-
-            const bgcol = switch (self.output_mode) {
-                .Output256 => bg & 0xFF,
-                .Output216 => (if ((bg & 0xFF) <= 215) (bg & 0xFF) else 0) + 0x10,
-                .Grayscale => (if ((bg & 0xFF) <= 23) (bg & 0xFF) else 0) + 0xe8,
-                .Normal => bg & 0x0F,
-            };
-
-            if (fg & @enumToInt(Attribute.Bold) > 0) {
-                try writer.writeAll(self.term.funcs.get(.Bold));
-            }
-            if (bg & @enumToInt(Attribute.Bold) > 0) {
-                try writer.writeAll(self.term.funcs.get(.Blink));
-            }
-            if (fg & @enumToInt(Attribute.Underline) > 0) {
-                try writer.writeAll(self.term.funcs.get(.Underline));
-            }
-            if (fg & @enumToInt(Attribute.Reverse) > 0 or bg & @enumToInt(Attribute.Reverse) > 0) {
-                try writer.writeAll(self.term.funcs.get(.Reverse));
-            }
-
-            try writeSgr(writer, fgcol, bgcol, self.output_mode);
-
-            self.last_fg = fg;
-            self.last_bg = bg;
-        }
-    }
-
     fn sendChar(self: *Self, x: usize, y: usize, c: u21) !void {
         const wanted_pos = Pos{ .x = x, .y = y };
         if (!self.cursor_state.pos.eql(wanted_pos)) {
@@ -336,7 +261,6 @@ pub const Termbox = struct {
     }
 
     fn sendClear(self: *Self) !void {
-        try self.sendAttr(self.foreground, self.background);
         try self.output_buffer.writer().writeAll(self.term.funcs.get(.ClearScreen));
         try self.output_buffer.flush();
     }

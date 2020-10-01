@@ -21,12 +21,14 @@ pub fn main() !void {
     try anchor.writer().print("Press any key to quit", .{});
     try t.present();
 
+    var current_color: u8 = 0;
     main: while (try t.pollEvent()) |ev| {
         switch (ev) {
             .Key => break :main,
-            .Mouse => |mouse_ev| t.back_buffer.get(mouse_ev.x, mouse_ev.y).bg = 0x08,
+            .Mouse => |mouse_ev| t.back_buffer.get(mouse_ev.x, mouse_ev.y).style.background = .{ .Fixed = current_color },
             else => continue,
         }
+        current_color +%= 1;
         try t.present();
     }
 }

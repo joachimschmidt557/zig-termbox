@@ -2,16 +2,16 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const wcwidth = @import("zig-wcwidth/src/main.zig").wcwidth;
+const Style = @import("zig-ansi-term/src/style.zig").Style;
 
 pub const Cell = struct {
     ch: u21,
-    fg: u16,
-    bg: u16,
+    style: Style,
 
     const Self = @This();
 
     pub fn eql(self: Self, other: Self) bool {
-        return self.ch == other.ch and self.fg == other.fg and self.bg == other.bg;
+        return self.ch == other.ch and self.style.eql(other.style);
     }
 };
 
@@ -59,11 +59,10 @@ pub const CellBuffer = struct {
         self.alloc.free(old_buf);
     }
 
-    pub fn clear(self: *Self, fg: u16, bg: u16) void {
+    pub fn clear(self: *Self, style: Style) void {
         for (self.cells) |*cell| {
             cell.ch = ' ';
-            cell.fg = fg;
-            cell.bg = bg;
+            cell.style = style;
         }
     }
 
