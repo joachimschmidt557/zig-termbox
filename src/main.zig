@@ -37,7 +37,7 @@ const OutputMode = enum {
 };
 
 pub const Termbox = struct {
-    alloc: *Allocator,
+    allocator: *Allocator,
 
     orig_tios: std.os.termios,
 
@@ -65,7 +65,7 @@ pub const Termbox = struct {
 
     pub fn initFile(allocator: *Allocator, file: File) !Self {
         var self = Self{
-            .alloc = allocator,
+            .allocator = allocator,
 
             .orig_tios = try std.os.tcgetattr(file.handle),
 
@@ -81,11 +81,11 @@ pub const Termbox = struct {
             .term_w = 0,
             .term_h = 0,
 
-            .input_settings = InputSettings.default,
+            .input_settings = InputSettings{},
             .output_mode = OutputMode.Normal,
 
             .cursor = Cursor.Hidden,
-            .cursor_state = CursorState.default,
+            .cursor_state = CursorState{},
 
             .current_style = Style{},
         };
@@ -227,7 +227,8 @@ pub const Termbox = struct {
     }
 
     pub fn clear(self: *Self) void {
-        self.back_buffer.clear(self.foreground, self.background);
+        self.current_style = Style{};
+        self.back_buffer.clear(self.current_style);
     }
 
     pub fn selectInputSettings(self: *Self, input_settings: InputSettings) !void {
@@ -246,9 +247,9 @@ pub const Termbox = struct {
 
     fn sendChar(self: *Self, x: usize, y: usize, c: u21) !void {
         const wanted_pos = Pos{ .x = x, .y = y };
-        if (!self.cursor_state.pos.eql(wanted_pos)) {
+        if (!std.meta.eql(self.cursor_state.pos, wanted_pos)) {
             try writeCursor(self.output_buffer.writer(), x, y);
-            self.cursor_state.pos = wanted_pos;
+            self.cursor_state.pos = Pos{ .x = x + 1, .y = y };
         }
 
         var buf: [7]u8 = undefined;

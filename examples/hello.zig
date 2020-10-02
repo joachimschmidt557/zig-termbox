@@ -4,9 +4,9 @@ const termbox = @import("termbox");
 const Termbox = termbox.Termbox;
 
 pub fn main() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = &arena.allocator;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = &gpa.allocator;
 
     var t = try Termbox.init(allocator);
     defer t.shutdown() catch {};

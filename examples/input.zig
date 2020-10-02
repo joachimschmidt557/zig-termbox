@@ -18,17 +18,28 @@ pub fn main() !void {
     });
 
     var anchor = t.back_buffer.anchor(1, 1);
-    try anchor.writer().print("Press any key to quit", .{});
+    try anchor.writer().print("Input testing", .{});
+
+    anchor.move(1, 2);
+    try anchor.writer().print("Press q key to quit", .{});
+
     try t.present();
 
-    var current_color: u8 = 0;
     main: while (try t.pollEvent()) |ev| {
         switch (ev) {
-            .Key => break :main,
-            .Mouse => |mouse_ev| t.back_buffer.get(mouse_ev.x, mouse_ev.y).style.background = .{ .Fixed = current_color },
-            else => continue,
+            .Key => |key_ev| switch (key_ev.ch) {
+                'q' => break :main,
+                else => {},
+            },
+            else => {},
         }
-        current_color +%= 1;
+
+        t.clear();
+        anchor.move(1, 1);
+        try anchor.writer().print("Event: {}", .{ev});
+        anchor.move(1, 2);
+        try anchor.writer().print("Press q key to quit", .{});
+
         try t.present();
     }
 }

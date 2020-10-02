@@ -3,4 +3,6 @@ hello
 hello.o
 paint
 paint.o
+input
+input.o
 debug.log

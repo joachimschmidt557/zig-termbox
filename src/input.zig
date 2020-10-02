@@ -285,9 +285,6 @@ pub fn extractEvent(fifo: *Fifo, term: Term, settings: InputSettings) ?Event {
 }
 
 pub fn waitFillEvent(inout: File, fifo: *Fifo, term: Term, settings: InputSettings) !?Event {
-    var debug_log = try std.fs.cwd().createFile("debug.log", .{});
-    defer debug_log.close();
-
     while (true) {
         // Read everything we can into the buffer
         var b: [64]u8 = undefined;
@@ -296,8 +293,6 @@ pub fn waitFillEvent(inout: File, fifo: *Fifo, term: Term, settings: InputSettin
             try fifo.write(b[0..amt_read]);
             if (amt_read < 64) break;
         }
-
-        _ = try debug_log.writeAll("here\n");
 
         if (extractEvent(fifo, term, settings)) |x| {
             return x;
@@ -315,7 +310,6 @@ pub fn waitFillEvent(inout: File, fifo: *Fifo, term: Term, settings: InputSettin
             defer std.os.close(epfd);
 
             try std.os.epoll_ctl(epfd, std.os.EPOLL_CTL_ADD, inout.handle, &event);
-            _ = try debug_log.writeAll("waiting\n");
             _ = std.os.epoll_wait(epfd, &recieved_events, -1);
         }
     }
@@ -329,15 +323,10 @@ pub const InputMode = enum {
 };
 
 pub const InputSettings = struct {
-    mode: InputMode,
-    mouse: bool,
+    mode: InputMode = InputMode.Esc,
+    mouse: bool = false,
 
     const Self = @This();
-
-    pub const default = Self{
-        .mode = InputMode.Esc,
-        .mouse = false,
-    };
 
     pub fn applySettings(self: Self, term: Term, writer: anytype) !void {
         if (self.mouse) {
