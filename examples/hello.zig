@@ -12,7 +12,7 @@ pub fn main() !void {
     defer t.shutdown() catch {};
 
     var anchor = t.back_buffer.anchor(1, 1);
-    try anchor.writer().print("Hello {}!", .{"World"});
+    try anchor.writer().print("Hello {s}!", .{"World"});
 
     anchor.move(1, 2);
     try anchor.writer().print("Press any key to quit", .{});

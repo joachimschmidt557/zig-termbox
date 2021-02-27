@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 fn tryPath(alloc: *Allocator, path: []const u8, term: []const u8) ?[]const u8 {
-    const tmp = std.fmt.allocPrint(alloc, "{}/{}/{}", .{ path, &[_]u8{term[0]}, term }) catch return null;
+    const tmp = std.fmt.allocPrint(alloc, "{s}/{s}/{s}", .{ path, &[_]u8{term[0]}, term }) catch return null;
     defer alloc.free(tmp);
 
     return std.fs.cwd().readFileAlloc(alloc, tmp, std.math.maxInt(usize)) catch null;
@@ -18,7 +18,7 @@ pub fn loadTerminfo(alloc: *Allocator) !?[]const u8 {
 
     // Check ~/.terminfo
     if (std.os.getenv("HOME")) |home| {
-        const path = try std.fmt.allocPrint(alloc, "{}/.terminfo", .{home});
+        const path = try std.fmt.allocPrint(alloc, "{s}/.terminfo", .{home});
         defer alloc.free(path);
 
         if (tryPath(alloc, path, term)) |data| return data;
