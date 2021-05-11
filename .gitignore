@@ -1,8 +1,3 @@
 zig-cache/
-hello
-hello.o
-paint
-paint.o
-input
-input.o
+zig-out/
 debug.log
