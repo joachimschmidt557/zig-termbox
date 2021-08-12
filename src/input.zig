@@ -147,7 +147,7 @@ fn parseMouseEvent(fifo: *Fifo) ?MouseEvent {
         var read_n = fifo.read(buf[0..]);
         var read = buf[0..read_n];
 
-        var iter = std.mem.split(read[offset..], ";");
+        var iter = std.mem.split(u8, read[offset..], ";");
 
         // Get the absolute index of m/M in the buffer to unget the data past
         // it before returning.
@@ -169,7 +169,7 @@ fn parseMouseEvent(fifo: *Fifo) ?MouseEvent {
         const index_m = abs_index_m - (cb.?.len + cx.?.len + offset + 2);
 
         const cy = rest.?[0..index_m];
-        const is_m = rest.?[index_m] == 'M';
+        // const is_m = rest.?[index_m] == 'M';
 
         const n1 = std.fmt.parseInt(u8, cb.?, 10) catch |e| std.debug.panic("{}", .{e});
         const n2 = std.fmt.parseInt(u8, cx.?, 10) catch return null;
@@ -276,7 +276,7 @@ pub fn extractEvent(fifo: *Fifo, term: Term, settings: InputSettings) ?Event {
             };
             return Event{ .Key = key_ev };
         }
-    } else |err| {
+    } else |_| {
         // Quietly discard this byte
         fifo.discard(1);
     }
