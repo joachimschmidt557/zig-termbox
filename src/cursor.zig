@@ -12,5 +12,5 @@ pub const Cursor = union(enum) {
 
 pub const CursorState = struct {
     hidden: bool = false,
-    pos: Pos = Pos{ .x = 0, .y = 0 },
+    pos: ?Pos = null,
 };

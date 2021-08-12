@@ -155,6 +155,7 @@ pub const Termbox = struct {
     }
 
     pub fn present(self: *Self) !void {
+        self.cursor_state.pos = null;
         var y: usize = 0;
         while (y < self.front_buffer.height) : (y += 1) {
             var x: usize = 0;
@@ -247,9 +248,9 @@ pub const Termbox = struct {
 
     fn sendChar(self: *Self, x: usize, y: usize, c: u21) !void {
         const wanted_pos = Pos{ .x = x, .y = y };
-        if (!std.meta.eql(self.cursor_state.pos, wanted_pos)) {
+        if (self.cursor_state.pos == null or !std.meta.eql(self.cursor_state.pos, @as(?Pos, wanted_pos))) {
             try writeCursor(self.output_buffer.writer(), x, y);
-            self.cursor_state.pos = Pos{ .x = x + 1, .y = y };
+            self.cursor_state.pos = Pos{ .x = x, .y = y };
         }
 
         var buf: [7]u8 = undefined;
