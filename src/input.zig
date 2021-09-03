@@ -298,18 +298,18 @@ pub fn waitFillEvent(inout: File, fifo: *Fifo, term: Term, settings: InputSettin
             return x;
         } else {
             // Wait for events
-            var event = std.os.epoll_event{
-                .data = std.os.epoll_data{
+            var event = std.os.linux.epoll_event{
+                .data = std.os.linux.epoll_data{
                     .@"u32" = 0,
                 },
-                .events = std.os.EPOLLIN,
+                .events = std.os.linux.POLL.IN,
             };
-            var recieved_events: [1]std.os.epoll_event = undefined;
+            var recieved_events: [1]std.os.linux.epoll_event = undefined;
 
             const epfd = try std.os.epoll_create1(0);
             defer std.os.close(epfd);
 
-            try std.os.epoll_ctl(epfd, std.os.EPOLL_CTL_ADD, inout.handle, &event);
+            try std.os.epoll_ctl(epfd, std.os.linux.EPOLL.CTL_ADD, inout.handle, &event);
             _ = std.os.epoll_wait(epfd, &recieved_events, -1);
         }
     }

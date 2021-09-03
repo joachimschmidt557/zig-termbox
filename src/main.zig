@@ -91,24 +91,24 @@ pub const Termbox = struct {
         };
 
         var tios = self.orig_tios;
-        const tcflag_t = std.os.tcflag_t;
+        const tcflag_t = std.os.linux.tcflag_t;
 
-        tios.iflag &= ~(@intCast(tcflag_t, std.os.IGNBRK) | @intCast(tcflag_t, std.os.BRKINT) |
-            @intCast(tcflag_t, std.os.PARMRK) | @intCast(tcflag_t, std.os.ISTRIP) |
-            @intCast(tcflag_t, std.os.INLCR) | @intCast(tcflag_t, std.os.IGNCR) |
-            @intCast(tcflag_t, std.os.ICRNL) | @intCast(tcflag_t, std.os.IXON));
-        tios.oflag &= ~(@intCast(tcflag_t, std.os.OPOST));
-        tios.lflag &= ~(@intCast(tcflag_t, std.os.ECHO) | @intCast(tcflag_t, std.os.ECHONL) |
-            @intCast(tcflag_t, std.os.ICANON) | @intCast(tcflag_t, std.os.ISIG) |
-            @intCast(tcflag_t, std.os.IEXTEN));
-        tios.cflag &= ~(@intCast(tcflag_t, std.os.CSIZE) | @intCast(tcflag_t, std.os.PARENB));
-        tios.cflag |= @intCast(tcflag_t, std.os.CS8);
+        tios.iflag &= ~(@intCast(tcflag_t, std.os.linux.IGNBRK) | @intCast(tcflag_t, std.os.linux.BRKINT) |
+            @intCast(tcflag_t, std.os.linux.PARMRK) | @intCast(tcflag_t, std.os.linux.ISTRIP) |
+            @intCast(tcflag_t, std.os.linux.INLCR) | @intCast(tcflag_t, std.os.linux.IGNCR) |
+            @intCast(tcflag_t, std.os.linux.ICRNL) | @intCast(tcflag_t, std.os.linux.IXON));
+        tios.oflag &= ~(@intCast(tcflag_t, std.os.linux.OPOST));
+        tios.lflag &= ~(@intCast(tcflag_t, std.os.linux.ECHO) | @intCast(tcflag_t, std.os.linux.ECHONL) |
+            @intCast(tcflag_t, std.os.linux.ICANON) | @intCast(tcflag_t, std.os.linux.ISIG) |
+            @intCast(tcflag_t, std.os.linux.IEXTEN));
+        tios.cflag &= ~(@intCast(tcflag_t, std.os.linux.CSIZE) | @intCast(tcflag_t, std.os.linux.PARENB));
+        tios.cflag |= @intCast(tcflag_t, std.os.linux.CS8);
         // FIXME
         const VMIN = 6;
         const VTIME = 5;
         tios.cc[VMIN] = 0;
         tios.cc[VTIME] = 0;
-        try std.os.tcsetattr(self.inout.handle, std.os.TCSA.FLUSH, tios);
+        try std.os.tcsetattr(self.inout.handle, std.os.linux.TCSA.FLUSH, tios);
 
         try self.output_buffer.writer().writeAll(self.term.funcs.get(.EnterCa));
         try self.output_buffer.writer().writeAll(self.term.funcs.get(.EnterKeypad));
@@ -142,7 +142,7 @@ pub const Termbox = struct {
         try writer.writeAll(self.term.funcs.get(.ExitKeypad));
         try writer.writeAll(self.term.funcs.get(.ExitMouse));
         try self.output_buffer.flush();
-        try std.os.tcsetattr(self.inout.handle, std.os.TCSA.FLUSH, self.orig_tios);
+        try std.os.tcsetattr(self.inout.handle, std.os.linux.TCSA.FLUSH, self.orig_tios);
 
         self.term.deinit();
         self.inout.close();
@@ -240,7 +240,7 @@ pub const Termbox = struct {
     fn updateTermSize(self: *Self) void {
         var sz = std.mem.zeroes(std.os.linux.winsize);
 
-        _ = std.os.linux.ioctl(self.inout.handle, std.os.linux.TIOCGWINSZ, @ptrToInt(&sz));
+        _ = std.os.linux.ioctl(self.inout.handle, std.os.linux.T.IOCGWINSZ, @ptrToInt(&sz));
 
         self.term_w = sz.ws_col;
         self.term_h = sz.ws_row;

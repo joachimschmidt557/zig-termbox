@@ -16,7 +16,7 @@ pub const Cell = struct {
 };
 
 pub const CellBuffer = struct {
-    alloc: *Allocator,
+    allocator: *Allocator,
 
     width: usize,
     height: usize,
@@ -26,7 +26,7 @@ pub const CellBuffer = struct {
 
     pub fn init(allocator: *Allocator, w: usize, h: usize) !Self {
         return Self{
-            .alloc = allocator,
+            .allocator = allocator,
             .width = w,
             .height = h,
             .cells = try allocator.alloc(Cell, w * h),
@@ -34,7 +34,7 @@ pub const CellBuffer = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.alloc.free(self.cells);
+        self.allocator.free(self.cells);
     }
 
     pub fn resize(self: *Self, w: usize, h: usize) !void {
@@ -44,7 +44,7 @@ pub const CellBuffer = struct {
 
         self.width = w;
         self.height = h;
-        self.cells = try allocator.alloc(Cell, w * h);
+        self.cells = try self.allocator.alloc(Cell, w * h);
 
         const min_w = if (w < old_width) w else old_width;
         const min_h = if (h < old_height) h else old_height;
@@ -56,7 +56,7 @@ pub const CellBuffer = struct {
             std.mem.copy(u8, old_buf[src .. src + min_w], self.cells[dest .. dest + min_w]);
         }
 
-        self.alloc.free(old_buf);
+        self.allocator.free(old_buf);
     }
 
     pub fn clear(self: *Self, style: Style) void {
