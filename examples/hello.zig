@@ -6,7 +6,7 @@ const Termbox = termbox.Termbox;
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    const allocator = &gpa.allocator;
+    const allocator = gpa.allocator();
 
     var t = try Termbox.init(allocator);
     defer t.shutdown() catch {};

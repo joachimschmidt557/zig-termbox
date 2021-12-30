@@ -39,7 +39,7 @@ pub const TermFunc = enum {
 };
 
 pub const TermFuncs = struct {
-    allocator: ?*Allocator,
+    allocator: ?Allocator,
     data: [t_funcs_num][]const u8,
 
     const Self = @This();
@@ -56,7 +56,7 @@ pub const TermFuncs = struct {
 };
 
 pub const TermKeys = struct {
-    allocator: ?*Allocator,
+    allocator: ?Allocator,
     data: [t_keys_num][]const u8,
 
     const Self = @This();
@@ -105,7 +105,7 @@ pub const Term = struct {
         return error.UnsupportedTerm;
     }
 
-    pub fn initTerm(allocator: *Allocator) !Self {
+    pub fn initTerm(allocator: Allocator) !Self {
         const data = (try terminfo.loadTerminfo(allocator)) orelse return initTermBuiltin();
         defer allocator.free(data);
 

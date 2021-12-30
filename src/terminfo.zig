@@ -1,14 +1,14 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-fn tryPath(alloc: *Allocator, path: []const u8, term: []const u8) ?[]const u8 {
+fn tryPath(alloc: Allocator, path: []const u8, term: []const u8) ?[]const u8 {
     const tmp = std.fmt.allocPrint(alloc, "{s}/{s}/{s}", .{ path, &[_]u8{term[0]}, term }) catch return null;
     defer alloc.free(tmp);
 
     return std.fs.cwd().readFileAlloc(alloc, tmp, std.math.maxInt(usize)) catch null;
 }
 
-pub fn loadTerminfo(alloc: *Allocator) !?[]const u8 {
+pub fn loadTerminfo(alloc: Allocator) !?[]const u8 {
     const term = std.os.getenv("TERM") orelse return null;
 
     // Check if TERMINFO is set
@@ -37,7 +37,7 @@ pub fn loadTerminfo(alloc: *Allocator) !?[]const u8 {
     return tryPath(alloc, "/usr/share/terminfo", term);
 }
 
-pub fn copyString(alloc: *Allocator, data: []const u8, str: i16, table: i16) ![]const u8 {
+pub fn copyString(alloc: Allocator, data: []const u8, str: i16, table: i16) ![]const u8 {
     // Get offset
     const off = std.mem.readIntSliceNative(i16, data[@intCast(usize, str)..@intCast(usize, str + 2)]);
 
@@ -45,7 +45,7 @@ pub fn copyString(alloc: *Allocator, data: []const u8, str: i16, table: i16) ![]
     const src_ptr = @as([*c]const u8, &data[@intCast(usize, table) + @intCast(usize, off)]);
 
     // Convert to slice (search for \0)
-    const src = std.mem.spanZ(src_ptr);
+    const src = std.mem.span(src_ptr);
 
     // Duplicate
     return try alloc.dupe(u8, src);

@@ -16,7 +16,7 @@ pub const Cell = struct {
 };
 
 pub const CellBuffer = struct {
-    allocator: *Allocator,
+    allocator: Allocator,
 
     width: usize,
     height: usize,
@@ -24,7 +24,7 @@ pub const CellBuffer = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: *Allocator, w: usize, h: usize) !Self {
+    pub fn init(allocator: Allocator, w: usize, h: usize) !Self {
         return Self{
             .allocator = allocator,
             .width = w,

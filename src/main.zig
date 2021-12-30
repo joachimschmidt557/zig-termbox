@@ -37,7 +37,7 @@ const OutputMode = enum {
 };
 
 pub const Termbox = struct {
-    allocator: *Allocator,
+    allocator: Allocator,
 
     orig_tios: std.os.termios,
 
@@ -63,7 +63,7 @@ pub const Termbox = struct {
 
     const Self = @This();
 
-    pub fn initFile(allocator: *Allocator, file: File) !Self {
+    pub fn initFile(allocator: Allocator, file: File) !Self {
         var self = Self{
             .allocator = allocator,
 
@@ -124,11 +124,11 @@ pub const Termbox = struct {
         return self;
     }
 
-    pub fn initPath(allocator: *Allocator, path: []const u8) !Self {
+    pub fn initPath(allocator: Allocator, path: []const u8) !Self {
         return try initFile(allocator, try std.fs.openFileAbsolute(path, .{ .read = true, .write = true }));
     }
 
-    pub fn init(allocator: *Allocator) !Self {
+    pub fn init(allocator: Allocator) !Self {
         return try initPath(allocator, "/dev/tty");
     }
 
