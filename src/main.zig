@@ -125,7 +125,7 @@ pub const Termbox = struct {
     }
 
     pub fn initPath(allocator: Allocator, path: []const u8) !Self {
-        return try initFile(allocator, try std.fs.openFileAbsolute(path, .{ .read = true, .write = true }));
+        return try initFile(allocator, try std.fs.openFileAbsolute(path, .{ .mode = .read_write }));
     }
 
     pub fn init(allocator: Allocator) !Self {

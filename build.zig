@@ -18,12 +18,13 @@ pub fn build(b: *Builder) void {
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&main_tests.step);
 
-    const examples_step = b.step("examples", "Install examples");
     inline for (examples) |example| {
         var exe = b.addExecutable(example, "examples/" ++ example ++ ".zig");
         exe.addPackagePath("termbox", "src/main.zig");
         exe.setBuildMode(mode);
-        exe.install();
+
+        const run_cmd = exe.run();
+        const run_step = b.step(example, "Run the " ++ example ++ " example");
+        run_step.dependOn(&run_cmd.step);
     }
-    examples_step.dependOn(b.getInstallStep());
 }
