@@ -205,7 +205,7 @@ fn parseMouseEvent(fifo: *Fifo) ?MouseEvent {
 fn peekStartsWith(fifo: *Fifo, needle: []const u8) bool {
     if (needle.len > fifo.readableLength()) return false;
 
-    return for (needle) |x, i| {
+    return for (needle, 0..) |x, i| {
         if (x != fifo.peekItem(i)) break false;
     } else true;
 }
@@ -213,7 +213,7 @@ fn peekStartsWith(fifo: *Fifo, needle: []const u8) bool {
 fn parseEscapeSequence(fifo: *Fifo, term: Term) ?Event {
     if (parseMouseEvent(fifo)) |x| return Event{ .Mouse = x };
 
-    for (term.keys.data) |k, i| {
+    for (term.keys.data, 0..) |k, i| {
         if (peekStartsWith(fifo, k)) {
             fifo.discard(k.len);
             const key_ev = KeyEvent{
@@ -300,7 +300,7 @@ pub fn waitFillEvent(inout: File, fifo: *Fifo, term: Term, settings: InputSettin
             // Wait for events
             var event = std.os.linux.epoll_event{
                 .data = std.os.linux.epoll_data{
-                    .@"u32" = 0,
+                    .u32 = 0,
                 },
                 .events = std.os.linux.POLL.IN,
             };

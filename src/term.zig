@@ -6,7 +6,7 @@ const terminfo = @import("terminfo.zig");
 const enter_mouse_seq = "\x1b[?1000h\x1b[?1002h\x1b[?1015h\x1b[?1006h";
 const exit_mouse_seq = "\x1b[?1006l\x1b[?1015l\x1b[?1002l\x1b[?1000l";
 
-const ti_magic = 0432;
+const ti_magic = 432;
 const ti_alt_magic = 542;
 const ti_header_length = 12;
 
@@ -136,12 +136,12 @@ pub const Term = struct {
         const table_offset = str_offset + 2 * header_4;
 
         // Keys
-        for (result.keys.data) |*x, i| {
+        for (&result.keys.data, 0..) |*x, i| {
             x.* = try terminfo.copyString(allocator, data, str_offset + 2 * ti_keys[i], table_offset);
         }
 
         // Functions
-        for (result.funcs.data[0 .. t_funcs_num - 2]) |*x, i| {
+        for (result.funcs.data[0 .. t_funcs_num - 2], 0..) |*x, i| {
             x.* = try terminfo.copyString(allocator, data, str_offset + 2 * ti_funcs[i], table_offset);
         }
         result.funcs.data[t_funcs_num - 2] = try allocator.dupe(u8, enter_mouse_seq);
