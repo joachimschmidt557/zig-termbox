@@ -51,7 +51,7 @@ pub const TermFuncs = struct {
     }
 
     pub fn get(self: Self, x: TermFunc) []const u8 {
-        return self.data[@enumToInt(x)];
+        return self.data[@intFromEnum(x)];
     }
 };
 
@@ -88,7 +88,7 @@ pub const Term = struct {
     }
 
     fn initTermBuiltin() !Self {
-        const term = std.os.getenv("TERM") orelse return error.UnsupportedTerm;
+        const term = std.posix.getenv("TERM") orelse return error.UnsupportedTerm;
 
         for (terms) |t| {
             if (std.mem.eql(u8, term, t.name)) return t;
@@ -121,12 +121,12 @@ pub const Term = struct {
             },
         };
 
-        const header_0 = std.mem.readIntNative(i16, data[0..2]);
-        const header_1 = std.mem.readIntNative(i16, data[2..4]);
-        var header_2 = std.mem.readIntNative(i16, data[4..6]);
-        const header_3 = std.mem.readIntNative(i16, data[6..8]);
-        const header_4 = std.mem.readIntNative(i16, data[8..10]);
-        const number_sec_len = if (header_0 == ti_alt_magic) @as(i16, 4) else 2;
+        const header_0: i16 = @bitCast(data[0..2].*);
+        const header_1: i16 = @bitCast(data[2..4].*);
+        var header_2: i16 = @bitCast(data[4..6].*);
+        const header_3: i16 = @bitCast(data[6..8].*);
+        const header_4: i16 = @bitCast(data[8..10].*);
+        const number_sec_len: i16 = if (header_0 == ti_alt_magic) 4 else 2;
 
         if (@mod(header_1 + header_2, 2) != 0) {
             header_2 += 1;

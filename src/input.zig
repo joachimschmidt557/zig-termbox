@@ -126,8 +126,8 @@ fn parseMouseEvent(fifo: *Fifo) ?MouseEvent {
             3 => MouseAction.MouseRelease,
             else => return null,
         };
-        const x = @intCast(u8, fifo.peekItem(4) - 1 - 32);
-        const y = @intCast(u8, fifo.peekItem(5) - 1 - 32);
+        const x: u8 = @intCast(fifo.peekItem(4) - 1 - 32);
+        const y: u8 = @intCast(fifo.peekItem(5) - 1 - 32);
 
         fifo.discard(6);
         return MouseEvent{
@@ -144,7 +144,7 @@ fn parseMouseEvent(fifo: *Fifo) ?MouseEvent {
         const offset = if (is_u) 2 else @as(usize, 3);
 
         var buf: [32]u8 = undefined;
-        var read_n = fifo.read(buf[0..]);
+        const read_n = fifo.read(buf[0..]);
         var read = buf[0..read_n];
 
         var iter = std.mem.split(u8, read[offset..], ";");
@@ -218,7 +218,7 @@ fn parseEscapeSequence(fifo: *Fifo, term: Term) ?Event {
             fifo.discard(k.len);
             const key_ev = KeyEvent{
                 .mod = 0,
-                .key = 0xFFFF - @intCast(u16, i),
+                .key = 0xFFFF - @as(u16, @intCast(i)),
                 .ch = 0,
             };
             return Event{ .Key = key_ev };
@@ -241,7 +241,7 @@ pub fn extractEvent(fifo: *Fifo, term: Term, settings: InputSettings) ?Event {
                 .Esc => {
                     const key_ev = KeyEvent{
                         .mod = 0,
-                        .key = @enumToInt(Key.Esc),
+                        .key = @intFromEnum(Key.Esc),
                         .ch = 0,
                     };
                     return Event{ .Key = key_ev };
@@ -252,12 +252,12 @@ pub fn extractEvent(fifo: *Fifo, term: Term, settings: InputSettings) ?Event {
     }
 
     // Functional key
-    if (fifo.peekItem(0) <= @enumToInt(Key.Space) or
-        fifo.peekItem(0) == @enumToInt(Key.Backspace2))
+    if (fifo.peekItem(0) <= @intFromEnum(Key.Space) or
+        fifo.peekItem(0) == @intFromEnum(Key.Backspace2))
     {
         const key_ev = KeyEvent{
             .mod = 0,
-            .key = @intCast(u16, fifo.readItem() orelse unreachable),
+            .key = @intCast(fifo.readItem() orelse unreachable),
             .ch = 0,
         };
         return Event{ .Key = key_ev };
@@ -272,7 +272,7 @@ pub fn extractEvent(fifo: *Fifo, term: Term, settings: InputSettings) ?Event {
             const key_ev = KeyEvent{
                 .mod = 0,
                 .key = 0,
-                .ch = @intCast(u21, decoded),
+                .ch = @intCast(decoded),
             };
             return Event{ .Key = key_ev };
         }
@@ -306,11 +306,11 @@ pub fn waitFillEvent(inout: File, fifo: *Fifo, term: Term, settings: InputSettin
             };
             var recieved_events: [1]std.os.linux.epoll_event = undefined;
 
-            const epfd = try std.os.epoll_create1(0);
-            defer std.os.close(epfd);
+            const epfd = try std.posix.epoll_create1(0);
+            defer std.posix.close(epfd);
 
-            try std.os.epoll_ctl(epfd, std.os.linux.EPOLL.CTL_ADD, inout.handle, &event);
-            _ = std.os.epoll_wait(epfd, &recieved_events, -1);
+            try std.posix.epoll_ctl(epfd, std.os.linux.EPOLL.CTL_ADD, inout.handle, &event);
+            _ = std.posix.epoll_wait(epfd, &recieved_events, -1);
         }
     }
 

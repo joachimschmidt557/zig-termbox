@@ -1,8 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const wcwidth = @import("zig-wcwidth/src/main.zig").wcwidth;
-const Style = @import("zig-ansi-term/src/style.zig").Style;
+const wcwidth = @import("wcwidth").wcwidth;
+const Style = @import("ansi-term").style.Style;
 
 pub const Cell = struct {
     ch: u21,
@@ -82,7 +82,7 @@ pub const CellBuffer = struct {
             var iter = utf8_view.iterator();
             while (iter.nextCodepoint()) |c| {
                 context.cell_buffer.cells[context.pos].ch = c;
-                context.pos += @intCast(usize, wcwidth(c));
+                context.pos += @intCast(wcwidth(c));
             }
 
             return bytes.len;

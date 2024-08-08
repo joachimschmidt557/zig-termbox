@@ -6,14 +6,14 @@ const File = std.fs.File;
 const Fifo = std.fifo.LinearFifo(u8, .{ .Static = 512 });
 const bufferedWriter = std.io.bufferedWriter;
 
-const wcwidth = @import("zig-wcwidth/src/main.zig").wcwidth;
-const updateStyle = @import("zig-ansi-term/src/format.zig").updateStyle;
-const writeCursor = @import("zig-ansi-term/src/cursor.zig").setCursor;
+const wcwidth = @import("wcwidth").wcwidth;
+const updateStyle = @import("ansi-term").format.updateStyle;
+const writeCursor = @import("ansi-term").cursor.setCursor;
 
-pub const Style = @import("zig-ansi-term/src/style.zig").Style;
-pub const Color = @import("zig-ansi-term/src/style.zig").Color;
-pub const ColorRGB = @import("zig-ansi-term/src/style.zig").ColorRGB;
-pub const FontStyle = @import("zig-ansi-term/src/style.zig").FontStyle;
+pub const Style = @import("ansi-term").style.Style;
+pub const Color = @import("ansi-term").style.Color;
+pub const ColorRGB = @import("ansi-term").style.ColorRGB;
+pub const FontStyle = @import("ansi-term").style.FontStyle;
 
 const term = @import("term.zig");
 const cellbuffer = @import("cellbuffer.zig");
@@ -39,10 +39,9 @@ const OutputMode = enum {
 pub const Termbox = struct {
     allocator: Allocator,
 
-    orig_tios: std.os.termios,
+    orig_tios: std.posix.termios,
 
     inout: File,
-    winch_fds: [2]std.os.fd_t,
 
     back_buffer: CellBuffer,
     front_buffer: CellBuffer,
@@ -67,10 +66,9 @@ pub const Termbox = struct {
         var self = Self{
             .allocator = allocator,
 
-            .orig_tios = try std.os.tcgetattr(file.handle),
+            .orig_tios = try std.posix.tcgetattr(file.handle),
 
             .inout = file,
-            .winch_fds = try std.os.pipe(),
 
             .back_buffer = undefined,
             .front_buffer = undefined,
@@ -91,24 +89,32 @@ pub const Termbox = struct {
         };
 
         var tios = self.orig_tios;
-        const tcflag_t = std.os.linux.tcflag_t;
 
-        tios.iflag &= ~(@intCast(tcflag_t, std.os.linux.IGNBRK) | @intCast(tcflag_t, std.os.linux.BRKINT) |
-            @intCast(tcflag_t, std.os.linux.PARMRK) | @intCast(tcflag_t, std.os.linux.ISTRIP) |
-            @intCast(tcflag_t, std.os.linux.INLCR) | @intCast(tcflag_t, std.os.linux.IGNCR) |
-            @intCast(tcflag_t, std.os.linux.ICRNL) | @intCast(tcflag_t, std.os.linux.IXON));
-        tios.oflag &= ~(@intCast(tcflag_t, std.os.linux.OPOST));
-        tios.lflag &= ~(@intCast(tcflag_t, std.os.linux.ECHO) | @intCast(tcflag_t, std.os.linux.ECHONL) |
-            @intCast(tcflag_t, std.os.linux.ICANON) | @intCast(tcflag_t, std.os.linux.ISIG) |
-            @intCast(tcflag_t, std.os.linux.IEXTEN));
-        tios.cflag &= ~(@intCast(tcflag_t, std.os.linux.CSIZE) | @intCast(tcflag_t, std.os.linux.PARENB));
-        tios.cflag |= @intCast(tcflag_t, std.os.linux.CS8);
+        tios.iflag.IGNBRK = false;
+        tios.iflag.BRKINT = false;
+        tios.iflag.PARMRK = false;
+        tios.iflag.ISTRIP = false;
+        tios.iflag.INLCR = false;
+        tios.iflag.IGNCR = false;
+        tios.iflag.ICRNL = false;
+        tios.iflag.IXON = false;
+
+        tios.oflag.OPOST = false;
+
+        tios.lflag.ECHO = false;
+        tios.lflag.ECHONL = false;
+        tios.lflag.ICANON = false;
+        tios.lflag.ISIG = false;
+        tios.lflag.IEXTEN = false;
+
+        tios.cflag.CSIZE = .CS8;
+
         // FIXME
         const VMIN = 6;
         const VTIME = 5;
         tios.cc[VMIN] = 0;
         tios.cc[VTIME] = 0;
-        try std.os.tcsetattr(self.inout.handle, std.os.linux.TCSA.FLUSH, tios);
+        try std.posix.tcsetattr(self.inout.handle, std.posix.TCSA.FLUSH, tios);
 
         try self.output_buffer.writer().writeAll(self.term.funcs.get(.EnterCa));
         try self.output_buffer.writer().writeAll(self.term.funcs.get(.EnterKeypad));
@@ -142,12 +148,10 @@ pub const Termbox = struct {
         try writer.writeAll(self.term.funcs.get(.ExitKeypad));
         try writer.writeAll(self.term.funcs.get(.ExitMouse));
         try self.output_buffer.flush();
-        try std.os.tcsetattr(self.inout.handle, std.os.linux.TCSA.FLUSH, self.orig_tios);
+        try std.posix.tcsetattr(self.inout.handle, std.os.linux.TCSA.FLUSH, self.orig_tios);
 
         self.term.deinit();
         self.inout.close();
-        std.os.close(self.winch_fds[0]);
-        std.os.close(self.winch_fds[1]);
 
         self.back_buffer.deinit();
         self.front_buffer.deinit();
@@ -163,7 +167,7 @@ pub const Termbox = struct {
                 const back = self.back_buffer.get(x, y);
                 const front = self.front_buffer.get(x, y);
                 const wcw = wcwidth(back.ch);
-                const w = if (wcw >= 0) @intCast(usize, wcw) else 1;
+                const w: usize = if (wcw >= 0) @intCast(wcw) else 1;
 
                 if (front.eql(back.*)) {
                     x += w;
@@ -240,7 +244,7 @@ pub const Termbox = struct {
     fn updateTermSize(self: *Self) void {
         var sz = std.mem.zeroes(std.os.linux.winsize);
 
-        _ = std.os.linux.ioctl(self.inout.handle, std.os.linux.T.IOCGWINSZ, @ptrToInt(&sz));
+        _ = std.os.linux.ioctl(self.inout.handle, std.os.linux.T.IOCGWINSZ, @intFromPtr(&sz));
 
         self.term_w = sz.ws_col;
         self.term_h = sz.ws_row;
@@ -254,7 +258,7 @@ pub const Termbox = struct {
         }
 
         var buf: [7]u8 = undefined;
-        const len = std.unicode.utf8Encode(@intCast(u21, c), &buf) catch 0;
+        const len = std.unicode.utf8Encode(@intCast(c), &buf) catch 0;
         try self.output_buffer.writer().writeAll(buf[0..len]);
     }
 

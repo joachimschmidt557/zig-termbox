@@ -1,0 +1,23 @@
+.{
+    .name = "termbox",
+    .version = "0.1.0",
+    .dependencies = .{
+        .wcwidth = .{
+            .url = "git+https://github.com/joachimschmidt557/zig-wcwidth.git#5dbd6f099a111d062a2ba179306f8ba3de6c93a3",
+            .hash = "12204241bc4f9b62c2f11e017e6b7ae3103a39d2c609018d82d2e37f090268126cff",
+        },
+        .@"ansi-term" = .{
+            .url = "git+https://github.com/ziglibs/ansi-term.git#be839e962b739b3c73a5752f415b8027d248c0d8",
+            .hash = "12200719196e0abd325efa248fb03882c8fa2c7130e3ae1d57dbff72afc846b28495",
+        },
+    },
+    .paths = .{
+        "LICENSE",
+        "README.md",
+        "build.zig",
+        "build.zig.zon",
+        "examples/",
+        "includes/",
+        "src/",
+    },
+}

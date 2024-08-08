@@ -1,4 +1,4 @@
-const Builder = @import("std").build.Builder;
+const Build = @import("std").Build;
 
 const examples = [_][]const u8{
     "hello",
@@ -6,17 +6,29 @@ const examples = [_][]const u8{
     "input",
 };
 
-pub fn build(b: *Builder) void {
+pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const wcwidth = b.dependency("wcwidth", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("wcwidth");
+
+    const ansi_term = b.dependency("ansi-term", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("ansi-term");
+
     const module = b.addModule("termbox", .{
-        .source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
     });
+    module.addImport("wcwidth", wcwidth);
+    module.addImport("ansi-term", ansi_term);
 
     const main_tests = b.addTest(.{
         .name = "main test suite",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -27,15 +39,15 @@ pub fn build(b: *Builder) void {
     inline for (examples) |example| {
         const exe = b.addExecutable(.{
             .name = example,
-            .root_source_file = .{ .path = "examples/" ++ example ++ ".zig" },
+            .root_source_file = b.path("examples/" ++ example ++ ".zig"),
             .target = target,
             .optimize = optimize,
         });
 
-        const run_cmd = exe.run();
+        const run_cmd = b.addRunArtifact(exe);
         const run_step = b.step(example, "Run the " ++ example ++ " example");
         run_step.dependOn(&run_cmd.step);
 
-        exe.addModule("termbox", module);
+        exe.root_module.addImport("termbox", module);
     }
 }
