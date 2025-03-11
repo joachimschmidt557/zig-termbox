@@ -15,16 +15,16 @@ pub fn build(b: *Build) void {
         .optimize = optimize,
     }).module("wcwidth");
 
-    const ansi_term = b.dependency("ansi-term", .{
+    const ansi_term = b.dependency("ansi_term", .{
         .target = target,
         .optimize = optimize,
-    }).module("ansi-term");
+    }).module("ansi_term");
 
     const module = b.addModule("termbox", .{
         .root_source_file = b.path("src/main.zig"),
     });
     module.addImport("wcwidth", wcwidth);
-    module.addImport("ansi-term", ansi_term);
+    module.addImport("ansi_term", ansi_term);
 
     const main_tests = b.addTest(.{
         .name = "main test suite",

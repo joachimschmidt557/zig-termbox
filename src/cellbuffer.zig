@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const wcwidth = @import("wcwidth").wcwidth;
-const Style = @import("ansi-term").style.Style;
+const Style = @import("ansi_term").style.Style;
 
 pub const Cell = struct {
     ch: u21,

@@ -1,14 +1,15 @@
 .{
-    .name = "termbox",
+    .name = .termbox,
     .version = "0.1.0",
+    .fingerprint = 0x60c4b8f6427e409a,
     .dependencies = .{
         .wcwidth = .{
-            .url = "git+https://github.com/joachimschmidt557/zig-wcwidth.git#5dbd6f099a111d062a2ba179306f8ba3de6c93a3",
-            .hash = "12204241bc4f9b62c2f11e017e6b7ae3103a39d2c609018d82d2e37f090268126cff",
+            .url = "git+https://github.com/joachimschmidt557/zig-wcwidth?ref=v0.1.0#4f5c8efa838da57c9e1b14506138936964835999",
+            .hash = "wcwidth-0.1.0-A4Aa6obmAAC40epfTYwhsdITDO3M6dHEWf6C0jeGMWrV",
         },
-        .@"ansi-term" = .{
-            .url = "git+https://github.com/ziglibs/ansi-term.git#be839e962b739b3c73a5752f415b8027d248c0d8",
-            .hash = "12200719196e0abd325efa248fb03882c8fa2c7130e3ae1d57dbff72afc846b28495",
+        .ansi_term = .{
+            .url = "git+https://github.com/ziglibs/ansi_term?ref=v0.1.0#d88bc63e91e2c1cd2e60aaf51196860375c78042",
+            .hash = "ansi_term-0.1.0-_baAy9djAABNQdiVAt7Iwk4wlBh2kL-UAxEDd3wDs-09",
         },
     },
     .paths = .{

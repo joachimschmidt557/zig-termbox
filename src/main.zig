@@ -7,13 +7,15 @@ const Fifo = std.fifo.LinearFifo(u8, .{ .Static = 512 });
 const bufferedWriter = std.io.bufferedWriter;
 
 const wcwidth = @import("wcwidth").wcwidth;
-const updateStyle = @import("ansi-term").format.updateStyle;
-const writeCursor = @import("ansi-term").cursor.setCursor;
 
-pub const Style = @import("ansi-term").style.Style;
-pub const Color = @import("ansi-term").style.Color;
-pub const ColorRGB = @import("ansi-term").style.ColorRGB;
-pub const FontStyle = @import("ansi-term").style.FontStyle;
+const ansi_term = @import("ansi_term");
+const updateStyle = ansi_term.format.updateStyle;
+const writeCursor = ansi_term.cursor.setCursor;
+
+pub const Style = ansi_term.style.Style;
+pub const Color = ansi_term.style.Color;
+pub const ColorRGB = ansi_term.style.ColorRGB;
+pub const FontStyle = ansi_term.style.FontStyle;
 
 const term = @import("term.zig");
 const cellbuffer = @import("cellbuffer.zig");
@@ -242,12 +244,12 @@ pub const Termbox = struct {
     }
 
     fn updateTermSize(self: *Self) void {
-        var sz = std.mem.zeroes(std.os.linux.winsize);
+        var sz = std.mem.zeroes(std.posix.winsize);
 
         _ = std.os.linux.ioctl(self.inout.handle, std.os.linux.T.IOCGWINSZ, @intFromPtr(&sz));
 
-        self.term_w = sz.ws_col;
-        self.term_h = sz.ws_row;
+        self.term_w = sz.col;
+        self.term_h = sz.row;
     }
 
     fn sendChar(self: *Self, x: usize, y: usize, c: u21) !void {

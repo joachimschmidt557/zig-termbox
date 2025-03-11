@@ -147,7 +147,7 @@ fn parseMouseEvent(fifo: *Fifo) ?MouseEvent {
         const read_n = fifo.read(buf[0..]);
         var read = buf[0..read_n];
 
-        var iter = std.mem.split(u8, read[offset..], ";");
+        var iter = std.mem.splitScalar(u8, read[offset..], ';');
 
         // Get the absolute index of m/M in the buffer to unget the data past
         // it before returning.

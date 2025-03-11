@@ -26,7 +26,7 @@ pub fn loadTerminfo(alloc: Allocator) !?[]const u8 {
 
     // Check TERMINFO_DIRS
     if (std.posix.getenv("TERMINFO_DIRS")) |dirs| {
-        var iter = std.mem.tokenize(u8, dirs, ":");
+        var iter = std.mem.tokenizeScalar(u8, dirs, ':');
         while (iter.next()) |dir| {
             const cdir = if (dir.len == 0) "/usr/share/terminfo" else dir;
             if (tryPath(alloc, cdir, term)) |data| return data;
