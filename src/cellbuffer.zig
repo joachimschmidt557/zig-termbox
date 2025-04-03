@@ -25,7 +25,7 @@ pub const CellBuffer = struct {
     const Self = @This();
 
     pub fn init(allocator: Allocator, w: usize, h: usize) !Self {
-        return Self{
+        return .{
             .allocator = allocator,
             .width = w,
             .height = h,
@@ -98,7 +98,7 @@ pub const CellBuffer = struct {
     };
 
     pub fn anchor(self: *Self, x: usize, y: usize) Anchor {
-        return Anchor{
+        return .{
             .cell_buffer = self,
             .pos = y * self.width + x,
         };

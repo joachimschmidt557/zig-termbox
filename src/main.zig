@@ -81,13 +81,13 @@ pub const Termbox = struct {
             .term_w = 0,
             .term_h = 0,
 
-            .input_settings = InputSettings{},
-            .output_mode = OutputMode.Normal,
+            .input_settings = .{},
+            .output_mode = .Normal,
 
-            .cursor = Cursor.Hidden,
-            .cursor_state = CursorState{},
+            .cursor = .Hidden,
+            .cursor_state = .{},
 
-            .current_style = Style{},
+            .current_style = .{},
         };
 
         var tios = self.orig_tios;

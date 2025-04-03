@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const termbox = @import("termbox");
-const InputSettings = termbox.InputSettings;
 const Termbox = termbox.Termbox;
 
 pub fn main() !void {
@@ -12,7 +11,7 @@ pub fn main() !void {
     var t = try Termbox.init(allocator);
     defer t.shutdown() catch {};
 
-    try t.selectInputSettings(InputSettings{
+    try t.selectInputSettings(.{
         .mode = .Esc,
         .mouse = true,
     });

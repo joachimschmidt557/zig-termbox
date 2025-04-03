@@ -141,7 +141,7 @@ fn parseMouseEvent(fifo: *Fifo) ?MouseEvent {
         // xterm: \033 [ < Cb ; Cx ; Cy (M or m)
         // urxvt: \033 [ Cb ; Cx ; Cy M
         const is_u = !(fifo.count >= 2 and fifo.peekItem(2) == '<');
-        const offset = if (is_u) 2 else @as(usize, 3);
+        const offset: usize = if (is_u) 2 else 3;
 
         var buf: [32]u8 = undefined;
         const read_n = fifo.read(buf[0..]);
